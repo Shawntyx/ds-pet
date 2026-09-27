@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+release/
+*.log
+.DS_Store
+.claude/
+
+# API Key 等本地配置绝不能进版本库
+.env
+config.local.json

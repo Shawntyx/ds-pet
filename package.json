@@ -1,0 +1,17 @@
+{
+  "name": "whale-pet",
+  "version": "0.1.0",
+  "description": "鲸鱼娘桌面宠物 - AI desktop pet",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dev": "tsc -p tsconfig.json -w"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
