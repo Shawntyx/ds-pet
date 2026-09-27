@@ -4,6 +4,9 @@ import { loadSettings } from './config';
 import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
 import { initContextMenu } from './menuWindow';
+import { initChat } from './chatWindow';
+import { initSettings } from './settingsWindow';
+import { initBubble } from './bubbleWindow';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -71,12 +74,18 @@ app.whenReady().then(() => {
   createTray(setVisible);
   registerGlobalShortcuts(mainWindow, setVisible);
   initContextMenu(mainWindow, setVisible);
+  initChat(mainWindow);
+  initSettings(mainWindow, setVisible);
+  initBubble(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createWindow();
       registerIpcHandlers(mainWindow);
       initContextMenu(mainWindow, setVisible);
+      initChat(mainWindow);
+      initSettings(mainWindow, setVisible);
+      initBubble(mainWindow);
     }
   });
 });

@@ -7,6 +7,12 @@ const pairs = [
   ['src/renderer/pet.css', 'dist/renderer/pet.css'],
   ['src/renderer/menu.html', 'dist/renderer/menu.html'],
   ['src/renderer/menu.css', 'dist/renderer/menu.css'],
+  ['src/renderer/chat.html', 'dist/renderer/chat.html'],
+  ['src/renderer/chat.css', 'dist/renderer/chat.css'],
+  ['src/renderer/settings.html', 'dist/renderer/settings.html'],
+  ['src/renderer/settings.css', 'dist/renderer/settings.css'],
+  ['src/renderer/bubble.html', 'dist/renderer/bubble.html'],
+  ['src/renderer/bubble.css', 'dist/renderer/bubble.css'],
 ];
 
 for (const [from, to] of pairs) {

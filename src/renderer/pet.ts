@@ -20,6 +20,9 @@ interface Window {
     requestContextMenu(): void;
     onTriggerAction(callback: (action: PetMenuAction) => void): void;
     onShown(callback: () => void): void;
+    onThinkingStart(callback: () => void): void;
+    onReply(callback: (payload: { text: string; emotion: string | null }) => void): void;
+    showBubble(text: string): void;
   };
 }
 
@@ -39,7 +42,14 @@ type PetState =
   | 'praise'
   | 'peekLeft'
   | 'peekRight'
-  | 'peekHome';
+  | 'peekHome'
+  | 'thinking'
+  | 'replyHappy'
+  | 'replyShy'
+  | 'replySad'
+  | 'replyAngry'
+  | 'replySurprised'
+  | 'replyLove';
 
 interface ZoneRect {
   x: number;
@@ -47,6 +57,11 @@ interface ZoneRect {
   w: number;
   h: number;
 }
+
+// 运行时代码整体包一层 IIFE：这几个渲染脚本都是全局脚本（没有 import/export），
+// 顶层标识符会共享同一个作用域，不包一层的话换个文件写个同名变量就会撞车报错
+// （interface/type 声明留在外面，因为要跟全局 Window 接口做声明合并）。
+(function () {
 
 // 和 src/shared/types.ts 里的 DEFAULT_ZONES 保持一致（渲染进程不能直接 import 主进程模块，改配置时两边都要改）。
 // 数值来自 ASSETS.md §0：先匹配尾巴（贴底部满宽），再匹配肚子，都不命中算头。
@@ -74,6 +89,24 @@ const SPRITE_FILES: Record<PetState, string> = {
   peekLeft: 'dsh-whale-settings-peek.webp',
   peekRight: 'dsh-whale-workbench-peek.webp',
   peekHome: 'dsh-whale-home-peek.webp',
+  // 阶段 2：等回复时思考，回复完按 persona.md 里的情绪标签切表情（默认 replyHappy）。
+  thinking: 'dsh-whale-state-thinking.webp',
+  replyHappy: 'dsh-whale-state-success.webp',
+  replyShy: 'dsh-whale-state-blush.webp',
+  replySad: 'dsh-whale-state-meme-cry.webp',
+  replyAngry: 'dsh-whale-state-angry.webp',
+  replySurprised: 'dsh-whale-state-meme-omg.webp',
+  replyLove: 'dsh-whale-state-meme-heart.webp',
+};
+
+/** persona.md 里约定的情绪标签 -> 状态名映射；识别不到就用默认的 replyHappy。 */
+const EMOTION_STATE: Record<string, PetState> = {
+  happy: 'replyHappy',
+  shy: 'replyShy',
+  sad: 'replySad',
+  angry: 'replyAngry',
+  surprised: 'replySurprised',
+  love: 'replyLove',
 };
 
 /** 离左/右边缘多近算"在边缘"，用于判断要不要触发探头。 */
@@ -89,7 +122,7 @@ const BOTTOM_EDGE_THRESHOLD_PX = 10;
 // 数值越大 = 角色往屏幕外挪得越多（留白让得越多）；改完不用重新量，改完 npm run build 重启看效果。
 const PEEK_LEFT_PADDING_FRAC = 0.275;  // 优化后的，除非有其他需求不然不用改
 const PEEK_RIGHT_PADDING_FRAC = 0.294; // 同上
-const PEEK_BOTTOM_PADDING_FRAC = 0.103; // 同上
+const PEEK_BOTTOM_PADDING_FRAC = 0.096; // 同上
 
 // home-peek 是近景构图（只画头+手），头在 512×512 画布里占比比 idle-cute（全身构图）大很多，
 // 所以哪怕窗口一样大，头看起来也明显更大。这里把整张图整体缩小一点，
@@ -135,7 +168,6 @@ const MENU_ACTION_BUBBLES: Record<PetMenuAction, string[]> = {
 };
 
 const spriteEl = document.getElementById('sprite') as HTMLImageElement;
-const bubbleEl = document.getElementById('bubble') as HTMLDivElement;
 spriteEl.addEventListener('error', () => console.error('[whale-pet] 立绘加载失败:', spriteEl.src));
 
 let spriteSize = 220;
@@ -145,7 +177,6 @@ let posY = 0;
 let ignoring = true;
 let state: PetState = 'idle';
 let currentFile = SPRITE_FILES.idle;
-let bubbleTimer: number | null = null;
 let actionTimer: number | null = null;
 
 // 每张图只解码一次，缓存像素数据用于透明度检测。
@@ -202,7 +233,7 @@ async function setState(next: PetState): Promise<void> {
   state = next;
   // 呼吸动画靠 CSS keyframes 改 transform，和下面手动设的 scale() 会互相覆盖，
   // 所以 peekHome 不叠加呼吸动画（反正这个姿势本来就是静止扒着，不呼吸也没关系）。
-  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight';
+  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight' || next === 'thinking';
   await setSprite(SPRITE_FILES[next], breathe, next === 'walking');
 
   // home-peek 头偏大，整体缩小一点，锚点在底部中间（手抓的地方不挪）；其他姿势都是原大小。
@@ -219,25 +250,12 @@ async function setState(next: PetState): Promise<void> {
 function playTransient(next: PetState, durationMs: number, bubbleText?: string): void {
   cancelScheduledAction();
   setState(next);
-  if (bubbleText) showBubble(bubbleText);
+  if (bubbleText) window.petAPI.showBubble(bubbleText);
   window.setTimeout(() => {
     if (dragging) return; // 反应播完之前用户已经把她拎起来了，别抢状态
     setState('idle');
     scheduleNextAction();
   }, durationMs);
-}
-
-function showBubble(text: string): void {
-  if (bubbleTimer !== null) window.clearTimeout(bubbleTimer);
-  bubbleEl.textContent = text;
-  bubbleEl.classList.remove('hidden');
-  // 强制 reflow 让 opacity 过渡生效
-  void bubbleEl.offsetWidth;
-  bubbleEl.classList.add('show');
-  bubbleTimer = window.setTimeout(() => {
-    bubbleEl.classList.remove('show');
-    window.setTimeout(() => bubbleEl.classList.add('hidden'), 200);
-  }, 2200);
 }
 
 /** object-fit: contain 下，图片实际渲染的矩形（相对窗口左上角）。素材都是 512×512 正方形，
@@ -390,6 +408,19 @@ window.petAPI.onTriggerAction((action) => {
 // 从隐藏状态召唤回来时打个招呼。
 window.petAPI.onShown(() => {
   playTransient('greet', 1400);
+});
+
+// 发消息后、模型第一个 token 回来之前：切到思考状态，不设定时返回待机（等真正回复了再说）。
+window.petAPI.onThinkingStart(() => {
+  cancelScheduledAction();
+  setState('thinking');
+});
+
+// 模型回完了（或者聊天面板关闭时补播最新一句）：按情绪标签切表情 + 冒气泡。
+window.petAPI.onReply(({ text, emotion }) => {
+  const next = (emotion && EMOTION_STATE[emotion]) || 'replyHappy';
+  const bubbleText = text.length > 60 ? `${text.slice(0, 57)}…` : text;
+  playTransient(next, 2400, bubbleText || undefined);
 });
 
 /* ---------------- 抛出物理（重力 + 落地弹跳） ---------------- */
@@ -586,3 +617,5 @@ async function init(): Promise<void> {
 }
 
 void init();
+
+})();

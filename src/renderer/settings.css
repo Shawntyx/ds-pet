@@ -1,0 +1,104 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: #faf7f9;
+  color: #333;
+  font-size: 13px;
+}
+
+#form {
+  padding: 14px 16px 24px;
+  box-sizing: border-box;
+}
+
+section {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+h2 {
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: #d17ea0;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #555;
+}
+
+label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+label.checkbox input {
+  width: auto;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font: inherit;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #4da3ff;
+}
+
+.hint {
+  font-size: 11px;
+  color: #999;
+  margin: 2px 0 8px;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#openPersonaFile {
+  background: #f0f0f0;
+  color: #333;
+}
+
+#save {
+  width: 100%;
+  background: #4da3ff;
+  color: #fff;
+  font-weight: 600;
+  padding: 10px;
+}
+
+#status {
+  min-height: 18px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+#status.ok {
+  color: #2a9d5c;
+}
+
+#status.err {
+  color: #c0392b;
+}

@@ -1,6 +1,7 @@
 import { app, Menu, Tray, nativeImage } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
+import { showSettingsWindow } from './settingsWindow';
 
 let tray: Tray | null = null;
 let onToggleVisibleRef: ((visible: boolean) => void) | null = null;
@@ -19,8 +20,7 @@ function rebuildMenu(): void {
     },
     {
       label: '设置',
-      // 阶段 2 才会做真正的设置界面，这里先占位。
-      enabled: false,
+      click: () => showSettingsWindow(),
     },
     { type: 'separator' },
     {

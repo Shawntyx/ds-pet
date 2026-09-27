@@ -2,6 +2,8 @@ import { BrowserWindow, globalShortcut } from 'electron';
 import { loadSettings, updateSettings } from './config';
 
 export function registerGlobalShortcuts(mainWindow: BrowserWindow, setVisible: (visible: boolean) => void): void {
+  // 设置里改快捷键后会重新调用这个函数，先清掉旧的注册，不然旧快捷键还留着、新快捷键也生效，两个都能触发。
+  globalShortcut.unregisterAll();
   const settings = loadSettings();
   const ok = globalShortcut.register(settings.toggleShortcut, () => {
     const next = updateSettings({ visible: !loadSettings().visible });

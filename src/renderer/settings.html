@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>设置</title>
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <form id="form">
+    <section>
+      <h2>模型</h2>
+      <label>
+        API Key
+        <input id="apiKey" type="password" autocomplete="off" placeholder="" />
+      </label>
+      <p class="hint" id="apiKeyHint"></p>
+      <label>
+        Base URL
+        <input id="baseURL" type="text" />
+      </label>
+      <label>
+        模型名
+        <input id="model" type="text" />
+      </label>
+    </section>
+
+    <section>
+      <h2>人设</h2>
+      <label>
+        当前人设
+        <select id="persona"></select>
+      </label>
+      <button type="button" id="openPersonaFile">打开人设文件</button>
+      <p class="hint">改完文件直接保存，不用重启、不用点这里的重新加载。</p>
+    </section>
+
+    <section>
+      <h2>快捷键</h2>
+      <label>
+        隐藏/召唤
+        <input id="toggleShortcut" type="text" placeholder="例如 Ctrl+Alt+W" />
+      </label>
+    </section>
+
+    <section>
+      <h2>主动说话（阶段 3 生效）</h2>
+      <label class="checkbox"><input id="proactiveEnabled" type="checkbox" /> 启用主动说话</label>
+      <label class="checkbox"><input id="healthReminder" type="checkbox" /> 久坐/喝水/睡觉提醒</label>
+      <label class="checkbox"><input id="windowTitleRoast" type="checkbox" /> 窗口标题吐槽</label>
+      <label class="checkbox"><input id="randomQuestion" type="checkbox" /> 随机哲学问题</label>
+      <label>
+        平均间隔（分钟）
+        <input id="avgIntervalMinutes" type="number" min="1" step="1" />
+      </label>
+    </section>
+
+    <div id="status"></div>
+    <button id="save" type="submit">保存</button>
+  </form>
+  <script src="settings.js"></script>
+</body>
+</html>

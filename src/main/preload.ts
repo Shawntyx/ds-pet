@@ -34,6 +34,15 @@ const bridge: PetBridge = {
   onShown(callback: () => void): void {
     ipcRenderer.on('pet:shown', () => callback());
   },
+  onThinkingStart(callback: () => void): void {
+    ipcRenderer.on('pet:thinking-start', () => callback());
+  },
+  onReply(callback: (payload: { text: string; emotion: string | null }) => void): void {
+    ipcRenderer.on('pet:reply', (_event, payload: { text: string; emotion: string | null }) => callback(payload));
+  },
+  showBubble(text: string): void {
+    ipcRenderer.send('pet:show-bubble', text);
+  },
 };
 
 contextBridge.exposeInMainWorld('petAPI', bridge);

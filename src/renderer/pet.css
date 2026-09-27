@@ -48,31 +48,3 @@ html, body {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
-
-#bubble {
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translate(-50%, -100%);
-  max-width: 160px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #333;
-  font-size: 13px;
-  line-height: 1.4;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  white-space: nowrap;
-}
-
-#bubble.show {
-  opacity: 1;
-}
-
-#bubble.hidden {
-  display: none;
-}

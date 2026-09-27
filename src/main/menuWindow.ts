@@ -2,6 +2,8 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { refreshTrayMenu } from './tray';
+import { showChatWindow } from './chatWindow';
+import { showSettingsWindow } from './settingsWindow';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
@@ -91,7 +93,12 @@ function handleAction(actionId: string): void {
     case 'hide':
       setVisibleRef?.(false);
       break;
-    // 'chat' / 'settings' 是阶段 2 占位项，菜单里已经标了"阶段 2"且禁用点击。
+    case 'chat':
+      showChatWindow();
+      break;
+    case 'settings':
+      showSettingsWindow();
+      break;
   }
 }
 

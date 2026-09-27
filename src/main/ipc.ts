@@ -1,10 +1,12 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { loadSettings } from './config';
+import { showBubbleOverlay } from './bubbleWindow';
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // 窗口在 'activate' 时可能被重建，这里先清掉旧监听，避免 ipcMain.handle 重复注册报错。
   ipcMain.removeAllListeners('pet:set-ignore-mouse-events');
   ipcMain.removeAllListeners('pet:set-window-position');
+  ipcMain.removeAllListeners('pet:show-bubble');
   ipcMain.removeHandler('pet:get-window-position');
   ipcMain.removeHandler('pet:get-work-area');
   ipcMain.removeHandler('pet:get-sprite-size');
@@ -17,6 +19,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.on('pet:set-window-position', (_event, x: number, y: number) => {
     mainWindow.setPosition(x, y, false);
+  });
+
+  ipcMain.on('pet:show-bubble', (_event, text: string) => {
+    showBubbleOverlay(text);
   });
 
   ipcMain.handle('pet:get-window-position', () => {
