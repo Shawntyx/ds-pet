@@ -1,51 +1,82 @@
 import { app, BrowserWindow, screen } from 'electron';
 import * as path from 'path';
+import { loadSettings } from './config';
+import { registerIpcHandlers } from './ipc';
+import { createTray } from './tray';
+import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
-// 阶段 0：先跑起一个透明、无边框、置顶的空白窗口，后续阶段再往里面加桌宠内容。
 let mainWindow: BrowserWindow | null = null;
 
-function createWindow(): void {
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-  const windowWidth = 300;
-  const windowHeight = 300;
+function createWindow(): BrowserWindow {
+  const settings = loadSettings();
+  const size = settings.spriteSize;
+  const { workArea } = screen.getPrimaryDisplay();
+  const x = workArea.x + workArea.width - size - 40;
+  const y = workArea.y + workArea.height - size;
 
-  mainWindow = new BrowserWindow({
-    width: windowWidth,
-    height: windowHeight,
-    x: screenWidth - windowWidth,
-    y: screenHeight - windowHeight,
+  const window = new BrowserWindow({
+    width: size,
+    height: size,
+    x,
+    y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
     hasShadow: false,
+    // 聊天面板（阶段 2）需要键盘输入，会用单独的可聚焦窗口；
+    // 桌宠本体窗口不需要抢输入焦点，免得打断用户在别的应用里打字。
+    focusable: false,
+    show: settings.visible,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      // preload 里要用 path/url 拼素材文件路径；Electron 默认的沙盒化 preload
+      // 只放行几个内置模块，没有 path，所以这里关掉 preload 的沙盒。
+      // 渲染进程本身仍然没有 nodeIntegration，安全边界没变。
+      sandbox: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../../src/renderer/index.html'));
+  window.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // 阶段 1 会按角色像素区域做点击穿透，这里先整体保留鼠标事件方便调试。
-  mainWindow.on('closed', () => {
+  // 默认整窗点击穿透，渲染进程会在鼠标移到角色不透明像素上时临时关闭穿透。
+  window.setIgnoreMouseEvents(true, { forward: true });
+
+  window.on('closed', () => {
     mainWindow = null;
   });
+
+  return window;
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  mainWindow = createWindow();
+  registerIpcHandlers(mainWindow);
+
+  const setVisible = (visible: boolean): void => {
+    if (!mainWindow) return;
+    if (visible) mainWindow.show();
+    else mainWindow.hide();
+  };
+
+  createTray(setVisible);
+  registerGlobalShortcuts(mainWindow, setVisible);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      mainWindow = createWindow();
+      registerIpcHandlers(mainWindow);
     }
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // 托盘常驻应用：所有窗口关闭也不退出进程，退出只走托盘菜单的"退出"。
+});
+
+app.on('will-quit', () => {
+  unregisterAllShortcuts();
 });

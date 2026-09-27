@@ -1,0 +1,3 @@
+[submodule "assets/whale"]
+	path = assets/whale
+	url = https://github.com/Sutera-Diffusus/dsh-whale-musume.git
