@@ -36,7 +36,9 @@ type PetState =
   | 'greet'
   | 'eat'
   | 'angry'
-  | 'praise';
+  | 'praise'
+  | 'peekLeft'
+  | 'peekRight';
 
 interface ZoneRect {
   x: number;
@@ -67,7 +69,13 @@ const SPRITE_FILES: Record<PetState, string> = {
   eat: 'dsh-whale-state-eat.webp',
   angry: 'dsh-whale-state-angry.webp',
   praise: 'dsh-whale-state-tail-swing.webp',
+  // ASSETS.md §10：settings-peek 扒左边缘，workbench-peek 扒右边缘。
+  peekLeft: 'dsh-whale-settings-peek.webp',
+  peekRight: 'dsh-whale-workbench-peek.webp',
 };
+
+/** 离左/右边缘多近算"在边缘"，用于摸鱼探头判定。 */
+const EDGE_THRESHOLD_PX = 30;
 
 // ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
 const IDLE_ACTION_FILES = [
@@ -157,7 +165,8 @@ async function setSprite(filename: string, breathe: boolean, walkBob: boolean): 
 
 async function setState(next: PetState): Promise<void> {
   state = next;
-  await setSprite(SPRITE_FILES[next], next === 'idle', next === 'walking');
+  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight';
+  await setSprite(SPRITE_FILES[next], breathe, next === 'walking');
 }
 
 /** 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。 */
@@ -359,8 +368,14 @@ function startThrow(vx: number, vy: number): void {
     if (posY >= gy && Math.abs(velY) < 5 && Math.abs(velX) < 5) {
       posY = gy;
       window.petAPI.setWindowPosition(posX, posY);
-      setState('idle');
-      scheduleNextAction();
+      // 手动拖到边缘松手：永久扒着，不自动恢复待机（直到下次被拖走/摸她）。
+      const side = edgeSideAt(posX);
+      if (side) {
+        enterPeek(side, true);
+      } else {
+        setState('idle');
+        scheduleNextAction();
+      }
       return;
     }
     physicsRaf = requestAnimationFrame(step);
@@ -370,7 +385,7 @@ function startThrow(vx: number, vy: number): void {
   physicsRaf = requestAnimationFrame(step);
 }
 
-/* ---------------- 待机小动作 + 随机走动 ---------------- */
+/* ---------------- 待机小动作 + 随机走动 + 扒边缘探头 ---------------- */
 
 function cancelScheduledAction(): void {
   if (actionTimer !== null) {
@@ -385,10 +400,39 @@ function scheduleNextAction(): void {
   actionTimer = window.setTimeout(runRandomIdleAction, delay);
 }
 
+/** 贴不贴着左/右边缘，用于判断要不要探头。不是边缘返回 null。 */
+function edgeSideAt(x: number): 'left' | 'right' | null {
+  if (x - workArea.x <= EDGE_THRESHOLD_PX) return 'left';
+  if (workArea.x + workArea.width - spriteSize - x <= EDGE_THRESHOLD_PX) return 'right';
+  return null;
+}
+
+/**
+ * 进入扒边缘探头姿势。
+ * permanent=true（手动拖到边缘松手）：一直保持，不再自动回待机，直到下次被拖走或摸她才会恢复。
+ * permanent=false（自己走到边缘触发）：5~10 秒后自动回待机。
+ */
+function enterPeek(side: 'left' | 'right', permanent: boolean): void {
+  cancelScheduledAction();
+  setState(side === 'left' ? 'peekLeft' : 'peekRight');
+  if (!permanent) {
+    const duration = 5000 + Math.random() * 5000;
+    window.setTimeout(() => {
+      if (dragging) return;
+      if (state !== 'peekLeft' && state !== 'peekRight') return; // 已经被别的交互打断了
+      setState('idle');
+      scheduleNextAction();
+    }, duration);
+  }
+}
+
 function runRandomIdleAction(): void {
   if (dragging || state === 'falling') return;
-  if (Math.random() < 0.55) {
+  const roll = Math.random();
+  if (roll < 0.5) {
     playIdlePoolAction();
+  } else if (roll < 0.7) {
+    walkToEdge();
   } else {
     walkToRandomSpot();
   }
@@ -405,8 +449,8 @@ function playIdlePoolAction(): void {
   }, 1800 + Math.random() * 1400);
 }
 
-function walkToRandomSpot(): void {
-  const targetX = clampX(workArea.x + Math.random() * workArea.width);
+/** 走到指定 x 坐标，到了之后调用 onArrive；中途被拖走会自动中断（不调用 onArrive）。 */
+function walkTo(targetX: number, onArrive: () => void): void {
   const facingLeft = targetX < posX;
   spriteEl.classList.toggle('face-left', facingLeft);
   setState('walking');
@@ -423,13 +467,34 @@ function walkToRandomSpot(): void {
     window.petAPI.setWindowPosition(posX, posY);
     if (Math.abs(targetX - posX) < 2) {
       spriteEl.classList.remove('face-left');
-      setState('idle');
-      scheduleNextAction();
+      onArrive();
       return;
     }
     requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+}
+
+function walkToRandomSpot(): void {
+  const targetX = clampX(workArea.x + Math.random() * workArea.width);
+  walkTo(targetX, () => {
+    setState('idle');
+    scheduleNextAction();
+  });
+}
+
+/** 特意走到屏幕左或右边缘；到了以后 10% 概率扒着探头，5~10 秒后自己回待机。 */
+function walkToEdge(): void {
+  const side: 'left' | 'right' = Math.random() < 0.5 ? 'left' : 'right';
+  const targetX = side === 'left' ? workArea.x : workArea.x + workArea.width - spriteSize;
+  walkTo(targetX, () => {
+    if (Math.random() < 0.1) {
+      enterPeek(side, false);
+    } else {
+      setState('idle');
+      scheduleNextAction();
+    }
+  });
 }
 
 /* ---------------- 启动 ---------------- */
