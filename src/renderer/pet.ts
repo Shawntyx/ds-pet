@@ -74,8 +74,16 @@ const SPRITE_FILES: Record<PetState, string> = {
   peekRight: 'dsh-whale-workbench-peek.webp',
 };
 
-/** 离左/右边缘多近算"在边缘"，用于摸鱼探头判定。 */
-const EDGE_THRESHOLD_PX = 30;
+/** 离左/右边缘多近算"在边缘"，用于判断要不要触发探头。 */
+const EDGE_THRESHOLD_PX = 60;
+
+// 探头素材自己带了对称留白，不是紧贴画布边缘画的——用 canvas 扫过 alpha 边界实测出来的：
+//   settings-peek（左边缘）：不透明内容在画布 25.8%~73.6% 之间
+//   workbench-peek（右边缘）：不透明内容在画布 27.7%~72.3% 之间
+// 如果贴边效果还是不对（离屏幕边缘有空隙，或者反而探出去太多），直接改这两个比例就行：
+// 数值越大 = 角色往屏幕外挪得越多（留白让得越多）；改完不用重新量，改完 npm run build 重启看效果。
+const PEEK_LEFT_PADDING_FRAC = 0.258;
+const PEEK_RIGHT_PADDING_FRAC = 0.277;
 
 // ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
 const IDLE_ACTION_FILES = [
@@ -139,6 +147,16 @@ function groundY(): number {
 
 function clampX(x: number): number {
   return Math.min(Math.max(x, workArea.x), workArea.x + workArea.width - spriteSize);
+}
+
+function clampY(y: number): number {
+  return Math.min(Math.max(y, workArea.y), workArea.y + workArea.height - spriteSize);
+}
+
+/** 探头贴边时窗口该放的 x：把素材里留白也算进去，让角色实际画面贴到屏幕真边缘。 */
+function peekWindowX(side: 'left' | 'right'): number {
+  if (side === 'left') return workArea.x - PEEK_LEFT_PADDING_FRAC * spriteSize;
+  return workArea.x + workArea.width - spriteSize + PEEK_RIGHT_PADDING_FRAC * spriteSize;
 }
 
 /** 切换当前显示的立绘文件；state 之外的临时姿势（待机小动作池）也走这个函数。 */
@@ -289,6 +307,12 @@ window.addEventListener('mouseup', () => {
   pointerDown = false;
   if (dragging) {
     dragging = false;
+    // 贴着左右边缘松手：不管当时多高，直接原地扒着探头，不用先掉到地上再判定。
+    const edgeSide = edgeSideAt(posX);
+    if (edgeSide) {
+      enterPeek(edgeSide, true);
+      return;
+    }
     const samples = velocitySamples;
     let vx = 0;
     let vy = 0;
@@ -368,7 +392,7 @@ function startThrow(vx: number, vy: number): void {
     if (posY >= gy && Math.abs(velY) < 5 && Math.abs(velX) < 5) {
       posY = gy;
       window.petAPI.setWindowPosition(posX, posY);
-      // 手动拖到边缘松手：永久扒着，不自动恢复待机（直到下次被拖走/摸她）。
+      // 抛出后弹跳/滑动刚好停在边缘：也永久扒着（贴边松手的情况在 mouseup 里已经提前处理了，不会走到这）。
       const side = edgeSideAt(posX);
       if (side) {
         enterPeek(side, true);
@@ -414,6 +438,9 @@ function edgeSideAt(x: number): 'left' | 'right' | null {
  */
 function enterPeek(side: 'left' | 'right', permanent: boolean): void {
   cancelScheduledAction();
+  posX = peekWindowX(side);
+  posY = clampY(posY);
+  window.petAPI.setWindowPosition(posX, posY);
   setState(side === 'left' ? 'peekLeft' : 'peekRight');
   if (!permanent) {
     const duration = 5000 + Math.random() * 5000;
