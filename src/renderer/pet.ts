@@ -91,6 +91,12 @@ const PEEK_LEFT_PADDING_FRAC = 0.275;  // 优化后的，除非有其他需求�
 const PEEK_RIGHT_PADDING_FRAC = 0.294; // 同上
 const PEEK_BOTTOM_PADDING_FRAC = 0.103; // 同上
 
+// home-peek 是近景构图（只画头+手），头在 512×512 画布里占比比 idle-cute（全身构图）大很多，
+// 所以哪怕窗口一样大，头看起来也明显更大。这里把整张图整体缩小一点，
+// 缩放锚点定在窗口底部中间（正好是手扒着的地方），这样缩小后手还是贴着任务栏，只是头变小。
+// 数值越小头越小；调这个数不用管 PEEK_BOTTOM_PADDING_FRAC，位置计算会自动跟着缩放比例走。
+const PEEK_HOME_SCALE = 0.75;
+
 // ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
 const IDLE_ACTION_FILES = [
   'dsh-whale-state-daily-eat.webp',
@@ -165,9 +171,9 @@ function peekWindowX(side: 'left' | 'right'): number {
   return workArea.x + workArea.width - spriteSize + PEEK_RIGHT_PADDING_FRAC * spriteSize;
 }
 
-/** home-peek 贴底边时窗口该放的 y，同样把底部留白让出去。 */
+/** home-peek 贴底边时窗口该放的 y，同样把底部留白让出去；整体缩小后留白的实际像素也跟着变小。 */
 function peekWindowYBottom(): number {
-  return groundY() + PEEK_BOTTOM_PADDING_FRAC * spriteSize;
+  return groundY() + PEEK_BOTTOM_PADDING_FRAC * PEEK_HOME_SCALE * spriteSize;
 }
 
 /** 切换当前显示的立绘文件；state 之外的临时姿势（待机小动作池）也走这个函数。 */
@@ -194,8 +200,19 @@ async function setSprite(filename: string, breathe: boolean, walkBob: boolean): 
 
 async function setState(next: PetState): Promise<void> {
   state = next;
-  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight' || next === 'peekHome';
+  // 呼吸动画靠 CSS keyframes 改 transform，和下面手动设的 scale() 会互相覆盖，
+  // 所以 peekHome 不叠加呼吸动画（反正这个姿势本来就是静止扒着，不呼吸也没关系）。
+  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight';
   await setSprite(SPRITE_FILES[next], breathe, next === 'walking');
+
+  // home-peek 头偏大，整体缩小一点，锚点在底部中间（手抓的地方不挪）；其他姿势都是原大小。
+  if (next === 'peekHome') {
+    spriteEl.style.transformOrigin = 'bottom center';
+    spriteEl.style.transform = `scale(${PEEK_HOME_SCALE})`;
+  } else {
+    spriteEl.style.transform = '';
+    spriteEl.style.transformOrigin = '';
+  }
 }
 
 /** 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。 */
@@ -235,17 +252,22 @@ function containRect(natW: number, natH: number, boxW: number, boxH: number) {
 function alphaAt(clientX: number, clientY: number): number {
   const cached = imageDataCache.get(currentFile);
   if (!cached) return 0;
+
+  // home-peek 用 CSS transform 整体缩小了（锚点底部居中），点击穿透判定要按同样的变换换算回去，
+  // 不然摸不准她、或者穿透区域跟画面对不上。
+  let x = clientX;
+  let y = clientY;
+  if (state === 'peekHome') {
+    x = (clientX - spriteSize / 2) / PEEK_HOME_SCALE + spriteSize / 2;
+    y = (clientY - spriteSize * (1 - PEEK_HOME_SCALE)) / PEEK_HOME_SCALE;
+  }
+
   const rect = containRect(cached.width, cached.height, spriteSize, spriteSize);
-  if (
-    clientX < rect.left ||
-    clientX > rect.left + rect.width ||
-    clientY < rect.top ||
-    clientY > rect.top + rect.height
-  ) {
+  if (x < rect.left || x > rect.left + rect.width || y < rect.top || y > rect.top + rect.height) {
     return 0;
   }
-  const px = Math.floor((clientX - rect.left) / rect.scale);
-  const py = Math.floor((clientY - rect.top) / rect.scale);
+  const px = Math.floor((x - rect.left) / rect.scale);
+  const py = Math.floor((y - rect.top) / rect.scale);
   if (px < 0 || py < 0 || px >= cached.width || py >= cached.height) return 0;
   const idx = (py * cached.width + px) * 4 + 3;
   return cached.data.data[idx];
