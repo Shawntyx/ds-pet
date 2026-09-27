@@ -89,7 +89,7 @@ const BOTTOM_EDGE_THRESHOLD_PX = 10;
 // 数值越大 = 角色往屏幕外挪得越多（留白让得越多）；改完不用重新量，改完 npm run build 重启看效果。
 const PEEK_LEFT_PADDING_FRAC = 0.275;  // 优化后的，除非有其他需求不然不用改
 const PEEK_RIGHT_PADDING_FRAC = 0.294; // 同上
-const PEEK_BOTTOM_PADDING_FRAC = 0.078; // 没实测截图确认过，效果不对就调这个
+const PEEK_BOTTOM_PADDING_FRAC = 0.103; // 同上
 
 // ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
 const IDLE_ACTION_FILES = [
