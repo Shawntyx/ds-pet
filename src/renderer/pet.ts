@@ -38,7 +38,8 @@ type PetState =
   | 'angry'
   | 'praise'
   | 'peekLeft'
-  | 'peekRight';
+  | 'peekRight'
+  | 'peekHome';
 
 interface ZoneRect {
   x: number;
@@ -69,21 +70,26 @@ const SPRITE_FILES: Record<PetState, string> = {
   eat: 'dsh-whale-state-eat.webp',
   angry: 'dsh-whale-state-angry.webp',
   praise: 'dsh-whale-state-tail-swing.webp',
-  // ASSETS.md §10：settings-peek 扒左边缘，workbench-peek 扒右边缘。
+  // ASSETS.md §10：settings-peek 扒左边缘，workbench-peek 扒右边缘，home-peek 扒底边/任务栏。
   peekLeft: 'dsh-whale-settings-peek.webp',
   peekRight: 'dsh-whale-workbench-peek.webp',
+  peekHome: 'dsh-whale-home-peek.webp',
 };
 
 /** 离左/右边缘多近算"在边缘"，用于判断要不要触发探头。 */
-const EDGE_THRESHOLD_PX = 60;
+const EDGE_THRESHOLD_PX = 5;
+/** 往下拖超过正常站立线（groundY）多少像素算"拖到底边"，触发 home-peek。 */
+const BOTTOM_EDGE_THRESHOLD_PX = 10;
 
 // 探头素材自己带了对称留白，不是紧贴画布边缘画的——用 canvas 扫过 alpha 边界实测出来的：
 //   settings-peek（左边缘）：不透明内容在画布 25.8%~73.6% 之间
 //   workbench-peek（右边缘）：不透明内容在画布 27.7%~72.3% 之间
-// 如果贴边效果还是不对（离屏幕边缘有空隙，或者反而探出去太多），直接改这两个比例就行：
+//   home-peek（底边）：peek-calibration.json 里 padBottom=40/512≈7.8%
+// 如果贴边效果还是不对（离屏幕边缘有空隙，或者反而探出去太多），直接改这几个比例就行：
 // 数值越大 = 角色往屏幕外挪得越多（留白让得越多）；改完不用重新量，改完 npm run build 重启看效果。
-const PEEK_LEFT_PADDING_FRAC = 0.258;
-const PEEK_RIGHT_PADDING_FRAC = 0.277;
+const PEEK_LEFT_PADDING_FRAC = 0.275;  // 优化后的，除非有其他需求不然不用改
+const PEEK_RIGHT_PADDING_FRAC = 0.294; // 同上
+const PEEK_BOTTOM_PADDING_FRAC = 0.078; // 没实测截图确认过，效果不对就调这个
 
 // ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
 const IDLE_ACTION_FILES = [
@@ -159,6 +165,11 @@ function peekWindowX(side: 'left' | 'right'): number {
   return workArea.x + workArea.width - spriteSize + PEEK_RIGHT_PADDING_FRAC * spriteSize;
 }
 
+/** home-peek 贴底边时窗口该放的 y，同样把底部留白让出去。 */
+function peekWindowYBottom(): number {
+  return groundY() + PEEK_BOTTOM_PADDING_FRAC * spriteSize;
+}
+
 /** 切换当前显示的立绘文件；state 之外的临时姿势（待机小动作池）也走这个函数。 */
 async function setSprite(filename: string, breathe: boolean, walkBob: boolean): Promise<void> {
   currentFile = filename;
@@ -183,7 +194,7 @@ async function setSprite(filename: string, breathe: boolean, walkBob: boolean): 
 
 async function setState(next: PetState): Promise<void> {
   state = next;
-  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight';
+  const breathe = next === 'idle' || next === 'peekLeft' || next === 'peekRight' || next === 'peekHome';
   await setSprite(SPRITE_FILES[next], breathe, next === 'walking');
 }
 
@@ -307,6 +318,11 @@ window.addEventListener('mouseup', () => {
   pointerDown = false;
   if (dragging) {
     dragging = false;
+    // 往下拖过正常站立线：直接原地扒着底边探头（home-peek），不用先掉到地上。
+    if (posY >= groundY() + BOTTOM_EDGE_THRESHOLD_PX) {
+      enterPeek('bottom', true);
+      return;
+    }
     // 贴着左右边缘松手：不管当时多高，直接原地扒着探头，不用先掉到地上再判定。
     const edgeSide = edgeSideAt(posX);
     if (edgeSide) {
@@ -431,22 +447,29 @@ function edgeSideAt(x: number): 'left' | 'right' | null {
   return null;
 }
 
+const PEEK_STATES: PetState[] = ['peekLeft', 'peekRight', 'peekHome'];
+
 /**
- * 进入扒边缘探头姿势。
+ * 进入扒边缘/底边探头姿势。
  * permanent=true（手动拖到边缘松手）：一直保持，不再自动回待机，直到下次被拖走或摸她才会恢复。
  * permanent=false（自己走到边缘触发）：5~10 秒后自动回待机。
  */
-function enterPeek(side: 'left' | 'right', permanent: boolean): void {
+function enterPeek(side: 'left' | 'right' | 'bottom', permanent: boolean): void {
   cancelScheduledAction();
-  posX = peekWindowX(side);
-  posY = clampY(posY);
+  if (side === 'bottom') {
+    posX = clampX(posX); // 水平位置保持拖到哪算哪，只夹一下别出界
+    posY = peekWindowYBottom();
+  } else {
+    posX = peekWindowX(side);
+    posY = clampY(posY);
+  }
   window.petAPI.setWindowPosition(posX, posY);
-  setState(side === 'left' ? 'peekLeft' : 'peekRight');
+  setState(side === 'left' ? 'peekLeft' : side === 'right' ? 'peekRight' : 'peekHome');
   if (!permanent) {
     const duration = 5000 + Math.random() * 5000;
     window.setTimeout(() => {
       if (dragging) return;
-      if (state !== 'peekLeft' && state !== 'peekRight') return; // 已经被别的交互打断了
+      if (!PEEK_STATES.includes(state)) return; // 已经被别的交互打断了
       setState('idle');
       scheduleNextAction();
     }, duration);
