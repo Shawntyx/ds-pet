@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import type { PetBridge } from '../shared/types';
+import type { PetBridge, PetMenuAction } from '../shared/types';
 
 // 素材仓库以 git submodule 形式放在 assets/whale/assets/generated 下。
 const ASSETS_ROOT = path.join(__dirname, '../../assets/whale/assets/generated');
@@ -24,6 +24,15 @@ const bridge: PetBridge = {
   },
   getSpriteSize(): Promise<number> {
     return ipcRenderer.invoke('pet:get-sprite-size');
+  },
+  requestContextMenu(): void {
+    ipcRenderer.send('pet:request-context-menu');
+  },
+  onTriggerAction(callback: (action: PetMenuAction) => void): void {
+    ipcRenderer.on('pet:trigger-action', (_event, action: PetMenuAction) => callback(action));
+  },
+  onShown(callback: () => void): void {
+    ipcRenderer.on('pet:shown', () => callback());
   },
 };
 

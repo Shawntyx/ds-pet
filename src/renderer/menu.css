@@ -1,0 +1,65 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+#menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 100%;
+  padding: 6px;
+  box-sizing: border-box;
+  background: rgba(255, 250, 253, 0.97);
+  border: 1px solid rgba(242, 139, 171, 0.35);
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #444;
+  cursor: pointer;
+  text-align: left;
+}
+
+.menu-item:hover:not(.disabled) {
+  background: rgba(242, 139, 171, 0.18);
+}
+
+.menu-item.disabled {
+  color: #bbb;
+  cursor: default;
+}
+
+.menu-item .check {
+  font-weight: bold;
+  color: #4da3ff;
+  min-width: 14px;
+  text-align: right;
+}
+
+.menu-item .badge {
+  font-size: 10px;
+  color: #bbb;
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 3px 4px;
+  background: rgba(0, 0, 0, 0.08);
+}

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { loadSettings } from './config';
 import { registerIpcHandlers } from './ipc';
 import { createTray } from './tray';
+import { initContextMenu } from './menuWindow';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -58,17 +59,24 @@ app.whenReady().then(() => {
 
   const setVisible = (visible: boolean): void => {
     if (!mainWindow) return;
-    if (visible) mainWindow.show();
-    else mainWindow.hide();
+    if (visible) {
+      mainWindow.show();
+      // 从隐藏状态召唤回来时，让她播一下打招呼动作（首次启动不用，renderer 自己的 init 会播）。
+      mainWindow.webContents.send('pet:shown');
+    } else {
+      mainWindow.hide();
+    }
   };
 
   createTray(setVisible);
   registerGlobalShortcuts(mainWindow, setVisible);
+  initContextMenu(mainWindow, setVisible);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createWindow();
       registerIpcHandlers(mainWindow);
+      initContextMenu(mainWindow, setVisible);
     }
   });
 });

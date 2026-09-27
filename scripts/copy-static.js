@@ -5,6 +5,8 @@ const path = require('path');
 const pairs = [
   ['src/renderer/index.html', 'dist/renderer/index.html'],
   ['src/renderer/pet.css', 'dist/renderer/pet.css'],
+  ['src/renderer/menu.html', 'dist/renderer/menu.html'],
+  ['src/renderer/menu.css', 'dist/renderer/menu.css'],
 ];
 
 for (const [from, to] of pairs) {

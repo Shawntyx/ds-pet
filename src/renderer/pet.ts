@@ -1,9 +1,14 @@
-// 渲染进程主逻辑：状态机、像素级点击穿透、拖拽抛出、行走、摸头摸尾巴互动。
+// 渲染进程主逻辑：状态机、像素级点击穿透、拖拽抛出、行走、摸头摸尾巴互动、右键菜单。
 // 注意：这个文件故意不用 import/export（不当 ES module 用），
 // 因为窗口没开 nodeIntegration，浏览器端没有 require，写成普通 <script> 直接跑最省事。
+//
+// 姿势/区域数值全部来自 ASSETS.md（核对过原项目 whale-moe-core.js 的真实触发逻辑），
+// 不是随便猜的，改动前先看那份文档。
 
 // 这个文件不含 import/export，TS 把它当成普通全局脚本处理，
 // 所以直接给 Window 接口做声明合并就行，不需要（也不能用）declare global 包一层。
+type PetMenuAction = 'feed' | 'poke' | 'praise';
+
 interface Window {
   petAPI: {
     resolveAsset(filename: string): string;
@@ -12,19 +17,26 @@ interface Window {
     getWindowPosition(): Promise<{ x: number; y: number }>;
     getWorkArea(): Promise<{ x: number; y: number; width: number; height: number }>;
     getSpriteSize(): Promise<number>;
+    requestContextMenu(): void;
+    onTriggerAction(callback: (action: PetMenuAction) => void): void;
+    onShown(callback: () => void): void;
   };
 }
 
+// 会持续跟踪/参与逻辑判断的"命名状态"；随机待机小动作池里的姿势不需要进这个枚举，
+// 直接用文件名播放就行（见 IDLE_ACTION_FILES）。
 type PetState =
   | 'idle'
-  | 'blink'
-  | 'tailSwing'
   | 'walking'
   | 'dragging'
   | 'falling'
   | 'petHead'
   | 'petTail'
-  | 'pokeBelly';
+  | 'pokeBelly'
+  | 'greet'
+  | 'eat'
+  | 'angry'
+  | 'praise';
 
 interface ZoneRect {
   x: number;
@@ -34,28 +46,64 @@ interface ZoneRect {
 }
 
 // 和 src/shared/types.ts 里的 DEFAULT_ZONES 保持一致（渲染进程不能直接 import 主进程模块，改配置时两边都要改）。
+// 数值来自 ASSETS.md §0：先匹配尾巴（贴底部满宽），再匹配肚子，都不命中算头。
 const ZONES: Record<'head' | 'tail' | 'belly', ZoneRect> = {
-  head: { x: 0.28, y: 0.0, w: 0.44, h: 0.28 },
-  tail: { x: 0.62, y: 0.35, w: 0.36, h: 0.35 },
-  belly: { x: 0.3, y: 0.42, w: 0.4, h: 0.3 },
+  tail: { x: 0.0, y: 0.78, w: 1.0, h: 0.22 },
+  belly: { x: 0.18, y: 0.45, w: 0.64, h: 0.33 },
+  head: { x: 0.2, y: 0.0, w: 0.6, h: 0.45 },
 };
 
 const SPRITE_FILES: Record<PetState, string> = {
   idle: 'dsh-whale-state-idle-cute.webp',
-  blink: 'dsh-whale-state-wink.webp',
-  tailSwing: 'dsh-whale-state-tail-swing.webp',
-  walking: 'dsh-whale-state-running.webp',
+  // running.webp 画的其实是"抱着笔记本电脑"，是阶段 2/3 的"工作中"姿势，不是走路动画，
+  // 这里素材没有专门的走路姿势，就用待机图 + CSS 上下晃动凑一个走路的感觉。
+  walking: 'dsh-whale-state-idle-cute.webp',
   dragging: 'dsh-whale-state-pick-up.webp',
   falling: 'dsh-whale-state-pick-up.webp',
   petHead: 'dsh-whale-state-react-head.webp',
   petTail: 'dsh-whale-state-react-tail.webp',
   pokeBelly: 'dsh-whale-state-react-belly.webp',
+  greet: 'dsh-whale-state-greet.webp',
+  eat: 'dsh-whale-state-eat.webp',
+  angry: 'dsh-whale-state-angry.webp',
+  praise: 'dsh-whale-state-tail-swing.webp',
 };
+
+// ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。
+const IDLE_ACTION_FILES = [
+  'dsh-whale-state-daily-eat.webp',
+  'dsh-whale-state-daily-coffee.webp',
+  'dsh-whale-state-daily-stretch.webp',
+  'dsh-whale-state-daily-pajama.webp',
+  'dsh-whale-state-daily-shower.webp',
+  'dsh-whale-state-cool-shades.webp',
+  'dsh-whale-state-meme-smug.webp',
+  'dsh-whale-state-daily-picnic.webp',
+  'dsh-whale-state-daily-cooking.webp',
+  'dsh-whale-state-daily-fishing.webp',
+  'dsh-whale-state-daily-painting.webp',
+  'dsh-whale-state-daily-gaming.webp',
+  'dsh-whale-state-tail-swing.webp',
+  'dsh-whale-state-meme-music.webp',
+  'dsh-whale-state-wink.webp',
+];
 
 const REACTION_BUBBLES: Record<'petHead' | 'petTail' | 'pokeBelly', string[]> = {
   petHead: ['诶、诶？！', '别、别乱摸啦…', '哼，心情变好了一点点'],
   petTail: ['尾巴不可以随便碰！', '呜哇！', '…其实还挺舒服的'],
   pokeBelly: ['肚、肚子不可以戳！', '嗯啊！？', '别戳啦，会笑出来的'],
+};
+
+const MENU_ACTION_STATE: Record<PetMenuAction, PetState> = {
+  feed: 'eat',
+  poke: 'angry',
+  praise: 'praise',
+};
+
+const MENU_ACTION_BUBBLES: Record<PetMenuAction, string[]> = {
+  feed: ['谢谢投喂～', '好吃！', '还要还要'],
+  poke: ['诶，戳我干嘛！', '呜——', '别戳啦'],
+  praise: ['嘿嘿，谢谢夸奖～', '哼，就知道一点点开心', '再多夸夸我嘛'],
 };
 
 const spriteEl = document.getElementById('sprite') as HTMLImageElement;
@@ -68,6 +116,7 @@ let posX = 0;
 let posY = 0;
 let ignoring = true;
 let state: PetState = 'idle';
+let currentFile = SPRITE_FILES.idle;
 let bubbleTimer: number | null = null;
 let actionTimer: number | null = null;
 
@@ -84,13 +133,12 @@ function clampX(x: number): number {
   return Math.min(Math.max(x, workArea.x), workArea.x + workArea.width - spriteSize);
 }
 
-async function setState(next: PetState): Promise<void> {
-  state = next;
-  const filename = SPRITE_FILES[next];
+/** 切换当前显示的立绘文件；state 之外的临时姿势（待机小动作池）也走这个函数。 */
+async function setSprite(filename: string, breathe: boolean, walkBob: boolean): Promise<void> {
+  currentFile = filename;
   spriteEl.src = window.petAPI.resolveAsset(filename);
-
-  spriteEl.classList.toggle('anim-breathe', next === 'idle');
-  spriteEl.classList.toggle('anim-walk-bob', next === 'walking');
+  spriteEl.classList.toggle('anim-breathe', breathe);
+  spriteEl.classList.toggle('anim-walk-bob', walkBob);
 
   if (!imageDataCache.has(filename)) {
     await new Promise<void>((resolve) => {
@@ -107,6 +155,23 @@ async function setState(next: PetState): Promise<void> {
   }
 }
 
+async function setState(next: PetState): Promise<void> {
+  state = next;
+  await setSprite(SPRITE_FILES[next], next === 'idle', next === 'walking');
+}
+
+/** 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。 */
+function playTransient(next: PetState, durationMs: number, bubbleText?: string): void {
+  cancelScheduledAction();
+  setState(next);
+  if (bubbleText) showBubble(bubbleText);
+  window.setTimeout(() => {
+    if (dragging) return; // 反应播完之前用户已经把她拎起来了，别抢状态
+    setState('idle');
+    scheduleNextAction();
+  }, durationMs);
+}
+
 function showBubble(text: string): void {
   if (bubbleTimer !== null) window.clearTimeout(bubbleTimer);
   bubbleEl.textContent = text;
@@ -120,7 +185,8 @@ function showBubble(text: string): void {
   }, 2200);
 }
 
-/** object-fit: contain 下，图片实际渲染的矩形（相对窗口左上角）。 */
+/** object-fit: contain 下，图片实际渲染的矩形（相对窗口左上角）。素材都是 512×512 正方形，
+ * 和正方形窗口同比例，理论上不会有留白，这里还是按通用公式算，换非正方形素材也不会错。 */
 function containRect(natW: number, natH: number, boxW: number, boxH: number) {
   const scale = Math.min(boxW / natW, boxH / natH);
   const width = natW * scale;
@@ -129,7 +195,7 @@ function containRect(natW: number, natH: number, boxW: number, boxH: number) {
 }
 
 function alphaAt(clientX: number, clientY: number): number {
-  const cached = imageDataCache.get(SPRITE_FILES[state]);
+  const cached = imageDataCache.get(currentFile);
   if (!cached) return 0;
   const rect = containRect(cached.width, cached.height, spriteSize, spriteSize);
   if (
@@ -147,14 +213,14 @@ function alphaAt(clientX: number, clientY: number): number {
   return cached.data.data[idx];
 }
 
-function zoneAt(clientX: number, clientY: number): 'head' | 'tail' | 'belly' | null {
+/** ASSETS.md §0：先匹配尾巴，再匹配肚子，都不命中算头——所以这里永远有返回值，不会是 null。 */
+function zoneAt(clientX: number, clientY: number): 'head' | 'tail' | 'belly' {
   const fx = clientX / spriteSize;
   const fy = clientY / spriteSize;
-  for (const key of ['head', 'tail', 'belly'] as const) {
-    const z = ZONES[key];
-    if (fx >= z.x && fx <= z.x + z.w && fy >= z.y && fy <= z.y + z.h) return key;
-  }
-  return null;
+  if (fy >= ZONES.tail.y) return 'tail';
+  const b = ZONES.belly;
+  if (fy >= b.y && fx >= b.x && fx <= b.x + b.w) return 'belly';
+  return 'head';
 }
 
 /* ---------------- 鼠标事件 / 点击穿透 ---------------- */
@@ -180,6 +246,7 @@ window.addEventListener('mousemove', (e) => {
 
 window.addEventListener('mousedown', (e) => {
   if (ignoring) return; // 理论上穿透状态下不会收到 mousedown，双重保险
+  if (e.button !== 0) return; // 右键留给右键菜单，不进拖拽判定
   pointerDown = true;
   dragging = false;
   dragStart = { x: e.clientX, y: e.clientY, screenX: e.screenX, screenY: e.screenY };
@@ -225,35 +292,34 @@ window.addEventListener('mouseup', () => {
     }
     startThrow(vx, vy);
   } else {
-    const zone = zoneAt(dragStart.x, dragStart.y);
-    if (zone) triggerReaction(zone);
-    else quickBlink();
+    triggerReaction(zoneAt(dragStart.x, dragStart.y));
   }
 });
 
+// 右键：只在不透明像素上（即没穿透时）弹自绘菜单，阻止系统右键菜单。
+window.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (ignoring) return;
+  window.petAPI.requestContextMenu();
+});
+
 function triggerReaction(zone: 'head' | 'tail' | 'belly'): void {
-  cancelScheduledAction();
   const stateName: 'petHead' | 'petTail' | 'pokeBelly' =
     zone === 'head' ? 'petHead' : zone === 'tail' ? 'petTail' : 'pokeBelly';
-  setState(stateName);
   const lines = REACTION_BUBBLES[stateName];
-  showBubble(lines[Math.floor(Math.random() * lines.length)]);
-  window.setTimeout(() => {
-    if (dragging) return; // 反应播完之前用户已经把她拎起来了，别抢状态
-    setState('idle');
-    scheduleNextAction();
-  }, 1600);
+  playTransient(stateName, 1600, lines[Math.floor(Math.random() * lines.length)]);
 }
 
-function quickBlink(): void {
-  cancelScheduledAction();
-  setState('blink');
-  window.setTimeout(() => {
-    if (dragging) return;
-    setState('idle');
-    scheduleNextAction();
-  }, 500);
-}
+// 菜单里点了投喂/戳一下/夸夸，主进程转发过来。
+window.petAPI.onTriggerAction((action) => {
+  const lines = MENU_ACTION_BUBBLES[action];
+  playTransient(MENU_ACTION_STATE[action], 1600, lines[Math.floor(Math.random() * lines.length)]);
+});
+
+// 从隐藏状态召唤回来时打个招呼。
+window.petAPI.onShown(() => {
+  playTransient('greet', 1400);
+});
 
 /* ---------------- 抛出物理（重力 + 落地弹跳） ---------------- */
 
@@ -321,19 +387,22 @@ function scheduleNextAction(): void {
 
 function runRandomIdleAction(): void {
   if (dragging || state === 'falling') return;
-  const roll = Math.random();
-  if (roll < 0.35) {
-    quickBlink();
-  } else if (roll < 0.55) {
-    setState('tailSwing');
-    window.setTimeout(() => {
-      if (dragging) return;
-      setState('idle');
-      scheduleNextAction();
-    }, 700);
+  if (Math.random() < 0.55) {
+    playIdlePoolAction();
   } else {
     walkToRandomSpot();
   }
+}
+
+function playIdlePoolAction(): void {
+  cancelScheduledAction();
+  const file = IDLE_ACTION_FILES[Math.floor(Math.random() * IDLE_ACTION_FILES.length)];
+  setSprite(file, true, false);
+  window.setTimeout(() => {
+    if (dragging) return;
+    setState('idle');
+    scheduleNextAction();
+  }, 1800 + Math.random() * 1400);
 }
 
 function walkToRandomSpot(): void {
@@ -375,8 +444,8 @@ async function init(): Promise<void> {
   document.getElementById('stage')!.style.width = `${spriteSize}px`;
   document.getElementById('stage')!.style.height = `${spriteSize}px`;
 
-  await setState('idle');
-  scheduleNextAction();
+  await setSprite(SPRITE_FILES.idle, true, false); // 先把待机图解码缓存好，再叠一下打招呼
+  playTransient('greet', 1400);
 }
 
 void init();
