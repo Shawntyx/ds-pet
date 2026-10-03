@@ -8,6 +8,7 @@ interface ProactiveSettingsView {
   windowTitleRoast: boolean;
   randomQuestion: boolean;
   avgIntervalMinutes: number;
+  titleFilterWords: string;
 }
 
 interface SettingsDataView {
@@ -44,6 +45,7 @@ interface Window {
   const windowTitleRoastEl = document.getElementById('windowTitleRoast') as HTMLInputElement;
   const randomQuestionEl = document.getElementById('randomQuestion') as HTMLInputElement;
   const avgIntervalMinutesEl = document.getElementById('avgIntervalMinutes') as HTMLInputElement;
+  const titleFilterWordsEl = document.getElementById('titleFilterWords') as HTMLTextAreaElement;
   const statusEl = document.getElementById('status') as HTMLDivElement;
 
   function fillForm(data: SettingsDataView): void {
@@ -68,6 +70,7 @@ interface Window {
     windowTitleRoastEl.checked = data.proactive.windowTitleRoast;
     randomQuestionEl.checked = data.proactive.randomQuestion;
     avgIntervalMinutesEl.value = String(data.proactive.avgIntervalMinutes);
+    titleFilterWordsEl.value = data.proactive.titleFilterWords;
   }
 
   openPersonaFileBtn.addEventListener('click', () => {
@@ -89,7 +92,8 @@ interface Window {
         healthReminder: healthReminderEl.checked,
         windowTitleRoast: windowTitleRoastEl.checked,
         randomQuestion: randomQuestionEl.checked,
-        avgIntervalMinutes: Math.max(1, Number(avgIntervalMinutesEl.value) || 30),
+        avgIntervalMinutes: Math.max(1, Number(avgIntervalMinutesEl.value) || 10),
+        titleFilterWords: titleFilterWordsEl.value,
       },
     };
     if (apiKeyEl.value.trim()) {

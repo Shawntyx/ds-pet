@@ -46,7 +46,8 @@ label.checkbox input {
 input[type="text"],
 input[type="password"],
 input[type="number"],
-select {
+select,
+textarea {
   width: 100%;
   box-sizing: border-box;
   margin-top: 4px;
@@ -54,9 +55,10 @@ select {
   border: 1px solid #ddd;
   border-radius: 8px;
   font: inherit;
+  resize: vertical;
 }
 
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: #4da3ff;
 }

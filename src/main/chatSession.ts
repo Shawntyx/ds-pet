@@ -20,6 +20,13 @@ export function clearHistory(): void {
   history = [];
 }
 
+/** 主动说话里不调模型的固定台词（健康提醒/哲学问题）也记进历史，
+ * 这样用户在气泡下面的输入框回一句时，模型能看到自己刚才说了什么。 */
+export function pushAssistantLine(text: string): void {
+  if (!text) return;
+  history.push({ role: 'assistant', content: text });
+}
+
 function buildSystemPrompt(): string {
   const settings = loadSettings();
   const persona = readPersonaContent(settings.activePersona);

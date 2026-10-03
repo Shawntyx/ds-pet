@@ -7,6 +7,7 @@ import { initContextMenu } from './menuWindow';
 import { initChat } from './chatWindow';
 import { initSettings } from './settingsWindow';
 import { initBubble } from './bubbleWindow';
+import { initProactive, stopProactive } from './proactive';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -77,6 +78,7 @@ app.whenReady().then(() => {
   initChat(mainWindow);
   initSettings(mainWindow, setVisible);
   initBubble(mainWindow);
+  initProactive(mainWindow);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -86,6 +88,7 @@ app.whenReady().then(() => {
       initChat(mainWindow);
       initSettings(mainWindow, setVisible);
       initBubble(mainWindow);
+      initProactive(mainWindow);
     }
   });
 });
@@ -96,4 +99,5 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   unregisterAllShortcuts();
+  stopProactive();
 });

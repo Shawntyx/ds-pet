@@ -43,10 +43,16 @@
     </section>
 
     <section>
-      <h2>主动说话（阶段 3 生效）</h2>
+      <h2>主动说话</h2>
+      <p class="hint">勿扰模式开启时完全不说话，跟这里的开关无关；勿扰在桌宠右键菜单或托盘菜单里切换。</p>
       <label class="checkbox"><input id="proactiveEnabled" type="checkbox" /> 启用主动说话</label>
-      <label class="checkbox"><input id="healthReminder" type="checkbox" /> 久坐/喝水/睡觉提醒</label>
+      <label class="checkbox"><input id="healthReminder" type="checkbox" /> 久坐/喝水/深夜提醒</label>
       <label class="checkbox"><input id="windowTitleRoast" type="checkbox" /> 窗口标题吐槽</label>
+      <p class="hint">只读取当前活动窗口的程序名和标题（不截图、不读窗口内容），会发送给模型服务商用来生成吐槽。</p>
+      <label>
+        标题过滤词（逗号或换行分隔，命中就跳过这次吐槽）
+        <textarea id="titleFilterWords" rows="2" placeholder="银行、密码、无痕等常见词已经内置了，这里填你想额外排除的"></textarea>
+      </label>
       <label class="checkbox"><input id="randomQuestion" type="checkbox" /> 随机哲学问题</label>
       <label>
         平均间隔（分钟）

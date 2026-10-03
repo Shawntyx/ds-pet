@@ -26,8 +26,6 @@ export interface InteractionZones {
   belly: ZoneRect;
 }
 
-/** 主动说话相关设置——阶段 3 才会真正接上逻辑，这里先把字段和默认值定好，
- * 设置界面已经能改，符合 SPEC 5.2 对设置界面的要求。 */
 export interface ProactiveSettings {
   enabled: boolean;
   healthReminder: boolean;
@@ -35,6 +33,9 @@ export interface ProactiveSettings {
   randomQuestion: boolean;
   /** 平均间隔分钟数（实际触发会在这个数上下随机） */
   avgIntervalMinutes: number;
+  /** 窗口标题吐槽的隐私过滤词，用户自定义追加的部分（逗号或换行分隔）；
+   * 内置黑名单（银行/密码/无痕等）固定生效，不受这个字段影响。 */
+  titleFilterWords: string;
 }
 
 export interface PetSettings {
@@ -70,7 +71,8 @@ export const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
   healthReminder: true,
   windowTitleRoast: true,
   randomQuestion: true,
-  avgIntervalMinutes: 30,
+  avgIntervalMinutes: 10,
+  titleFilterWords: '',
 };
 
 export const DEFAULT_SETTINGS: PetSettings = {
