@@ -33,6 +33,32 @@ export function extractEmotion(text: string): { text: string; emotion: Emotion |
   return { text: text.slice(match[0].length).trim(), emotion: match[1].toLowerCase() as Emotion };
 }
 
+/**
+ * persona.md 要求模型把情绪标签放在回复最开头、且不能让用户看到。标签是一路流式吐出来的，
+ * 不能只在最后才去掉——这里在真正转发给某个窗口之前，先攒住开头这一小段，判断出
+ * "确实是/确定不是"标签之后再决定要不要把标签部分吃掉。聊天面板、气泡小窗口共用这一份。
+ */
+const TAG_SNIFF_LIMIT = 20; // 攒够这么多字符还判断不出来就放弃等待，原样吐出去，防止异常输出卡住不出字
+export function createTagStrippingRelay(onClean: (text: string) => void): (raw: string) => void {
+  let buffer = '';
+  let resolved = false;
+  return (raw: string) => {
+    if (resolved) {
+      onClean(raw);
+      return;
+    }
+    buffer += raw;
+    const stillMaybeOpeningTag = /^\s*\[[a-zA-Z]*$/.test(buffer) && !buffer.includes(']');
+    if (stillMaybeOpeningTag && buffer.length < TAG_SNIFF_LIMIT) {
+      return; // 还判断不出来，继续攒
+    }
+    resolved = true;
+    const match = buffer.match(TAG_PATTERN);
+    const rest = match ? buffer.slice(match[0].length) : buffer;
+    if (rest) onClean(rest);
+  };
+}
+
 export interface SendHandlers {
   onThinkingStart: () => void;
   onDelta: (delta: string) => void;
@@ -76,4 +102,51 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
     },
     controller.signal
   );
+}
+
+/**
+ * 阶段 3 窗口标题吐槽用：不走正常的"用户发了一句话"流程（不往历史里塞假的用户发言），
+ * 只拿 instruction 当这次请求单独的提示语，让模型基于当前上下文说一句主动搭话的话。
+ * 失败/没配 Key 就返回 null，调用方该跳过就跳过，不是什么严重错误。
+ */
+export async function generateProactiveLine(
+  instruction: string
+): Promise<{ text: string; emotion: Emotion | null } | null> {
+  const apiKey = loadApiKey();
+  if (!apiKey) return null;
+  const settings = loadSettings();
+  const provider = createOpenAICompatibleProvider({
+    apiKey,
+    baseURL: settings.baseURL,
+    model: settings.model,
+  });
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: buildSystemPrompt() },
+    ...history,
+    { role: 'user', content: instruction },
+  ];
+
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    provider
+      .streamChat(
+        messages,
+        {
+          onDelta: () => {},
+          onDone: (fullText) => {
+            const { text, emotion } = extractEmotion(fullText);
+            if (!text) {
+              resolve(null);
+              return;
+            }
+            history.push({ role: 'assistant', content: text });
+            resolve({ text, emotion });
+          },
+          onError: () => resolve(null),
+        },
+        controller.signal
+      )
+      .catch(() => resolve(null));
+  });
 }

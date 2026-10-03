@@ -8,13 +8,17 @@ html, body {
   user-select: none;
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 4px;
 }
 
 #bubble {
-  max-width: 200px;
-  max-height: 80px;
+  max-width: 208px;
+  max-height: 76px;
   overflow: hidden;
   padding: 8px 12px;
   border-radius: 14px;
@@ -27,4 +31,28 @@ html, body {
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
   white-space: pre-wrap;
   word-break: break-word;
+  cursor: pointer;
+}
+
+#quickForm {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#quickInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 139, 171, 0.4);
+  background: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  font-size: 12px;
+  color: #333;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+#quickInput:focus {
+  outline: none;
+  border-color: #4da3ff;
 }

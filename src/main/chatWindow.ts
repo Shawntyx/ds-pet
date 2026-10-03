@@ -1,36 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
-import { EMOTION_TAGS, getHistory, sendUserMessage } from './chatSession';
+import { createTagStrippingRelay, getHistory, sendUserMessage } from './chatSession';
 import type { ChatMessageView } from '../shared/types';
-
-const TAG_PATTERN = new RegExp(`^\\s*\\[(${EMOTION_TAGS.join('|')})\\]\\s*`, 'i');
-/** 攒够这么多字符还没能判断出是不是标签，就放弃等待、原样吐出去（防止异常输出卡住不出字）。 */
-const TAG_SNIFF_LIMIT = 20;
-
-/**
- * persona.md 要求模型把情绪标签放在回复最开头、且不能让用户看到。标签是一路流式吐出来的，
- * 不能只在最后（onDone）才去掉——所以这里在真正转发给聊天窗口之前，先攒住开头这一小段，
- * 判断出"确实是/确定不是"标签之后再决定要不要把标签部分吃掉。
- */
-function createTagStrippingRelay(onClean: (text: string) => void): (raw: string) => void {
-  let buffer = '';
-  let resolved = false;
-  return (raw: string) => {
-    if (resolved) {
-      onClean(raw);
-      return;
-    }
-    buffer += raw;
-    const stillMaybeOpeningTag = /^\s*\[[a-zA-Z]*$/.test(buffer) && !buffer.includes(']');
-    if (stillMaybeOpeningTag && buffer.length < TAG_SNIFF_LIMIT) {
-      return; // 还判断不出来，继续攒
-    }
-    resolved = true;
-    const match = buffer.match(TAG_PATTERN);
-    const rest = match ? buffer.slice(match[0].length) : buffer;
-    if (rest) onClean(rest);
-  };
-}
 
 let chatWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
