@@ -83,6 +83,12 @@ export interface PetSettings {
   balanceWarnThreshold: number;
   /** 发给模型时只带最近这么多轮对话（一轮 = 用户一句 + 回复一句），避免上下文越来越长 */
   chatHistoryRounds: number;
+  /** 长期记忆总开关：关掉就不提取、也不注入 */
+  memoryEnabled: boolean;
+  /** 每完成多少轮对话提取一次长期记忆 */
+  memoryExtractEveryRounds: number;
+  /** 每次聊天最多把多少条记忆注入 system prompt（0 = 不注入） */
+  memoryInjectCount: number;
   proactive: ProactiveSettings;
 }
 
@@ -116,6 +122,9 @@ export const DEFAULT_SETTINGS: PetSettings = {
   afkAfterMinutes: 3,
   balanceWarnThreshold: 5,
   chatHistoryRounds: 20,
+  memoryEnabled: true,
+  memoryExtractEveryRounds: 5,
+  memoryInjectCount: 20,
   proactive: DEFAULT_PROACTIVE_SETTINGS,
 };
 
@@ -170,6 +179,13 @@ export interface ChatBridge {
   onError(callback: (message: string) => void): void;
 }
 
+/** 设置页展示长期记忆用的精简结构（完整结构在主进程 memory.ts 里）。 */
+export interface MemoryFactView {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface SettingsData {
   baseURL: string;
   model: string;
@@ -186,6 +202,15 @@ export interface SettingsData {
   chatHistoryRounds: number;
   /** 本机已经存了多少条聊天消息（设置页显示"当前记录"用） */
   chatMessageCount: number;
+  memoryEnabled: boolean;
+  memoryExtractEveryRounds: number;
+  memoryInjectCount: number;
+  /** 本机一共存了多少条长期记忆 */
+  memoryFactCount: number;
+  /** 记忆列表（最新的在前，最多前 50 条，够设置页展示和逐条删除） */
+  memoryFacts: MemoryFactView[];
+  /** 记忆文件路径，设置页显示用 */
+  memoryFilePath: string;
   proactive: ProactiveSettings;
 }
 
@@ -197,4 +222,10 @@ export interface SettingsBridge {
   refreshBalance(): Promise<BalanceView>;
   /** 清空本机聊天记录；主进程会先弹一个原生确认框，用户取消就返回 ok:false。 */
   clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
+  /** 用系统默认程序打开记忆文件（可以直接手改/删条目） */
+  openMemoryFile(): void;
+  /** 删掉一条记忆 */
+  deleteMemoryFact(id: string): Promise<{ ok: boolean; remaining: number }>;
+  /** 清空全部记忆；同样会先弹原生确认框。 */
+  clearMemory(): Promise<{ ok: boolean; cleared: number }>;
 }

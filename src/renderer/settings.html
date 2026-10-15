@@ -35,6 +35,26 @@
     </section>
 
     <section>
+      <h2>长期记忆</h2>
+      <label class="checkbox"><input id="memoryEnabled" type="checkbox" /> 启用长期记忆（从聊天里记住关于你的事）</label>
+      <label>
+        每多少轮提取一次
+        <input id="memoryExtractEveryRounds" type="number" min="1" step="1" />
+      </label>
+      <label>
+        每次聊天最多注入多少条
+        <input id="memoryInjectCount" type="number" min="0" step="1" />
+      </label>
+      <p class="hint" id="memoryHint">还没有记忆</p>
+      <ul id="memoryList" class="memory-list"></ul>
+      <div class="row">
+        <button type="button" id="openMemoryFile">打开记忆文件</button>
+        <button type="button" id="clearMemory">清空全部记忆</button>
+      </div>
+      <p class="hint">提取时会明确要求模型不记录密码、API Key、身份证号等信息，落盘前还会再过一遍正则过滤。记忆只存在本机（userData/memory/facts.json），点每条右边的 ✕ 可以单独删掉。</p>
+    </section>
+
+    <section>
       <h2>聊天记录</h2>
       <label>
         发给模型的最近轮数

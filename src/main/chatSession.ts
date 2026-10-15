@@ -10,6 +10,7 @@ import {
   getMessages,
   recentRounds,
 } from './chatStore';
+import { memorySection, noteCompletedExchange } from './memory';
 
 export const EMOTION_TAGS = ['happy', 'shy', 'sad', 'angry', 'surprised', 'love'] as const;
 export type Emotion = (typeof EMOTION_TAGS)[number];
@@ -34,8 +35,10 @@ export function pushAssistantLine(text: string): void {
 
 function buildSystemPrompt(): string {
   const settings = loadSettings();
-  const persona = readPersonaContent(settings.activePersona);
-  return persona || '你是一个友善的桌面宠物助手。';
+  const persona = readPersonaContent(settings.activePersona) || '你是一个友善的桌面宠物助手。';
+  // 长期记忆直接贴在 system prompt 后面（阶段 4）：没有可用记忆时 memorySection() 是空串。
+  const memory = memorySection();
+  return memory ? `${persona}\n\n${memory}` : persona;
 }
 
 /** 发给模型的上下文：人设 + 最近 N 轮（N 在设置里，避免上下文过长，SPEC §5.4）。 */
@@ -114,6 +117,8 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
         const { text, emotion } = extractEmotion(fullText);
         appendMessage({ role: 'assistant', content: text });
         handlers.onDone({ text, emotion });
+        // 一轮完整对话结束：攒够设置里的轮数就后台提取长期记忆（不阻塞回复显示）。
+        void noteCompletedExchange();
       },
       onError: (error) => {
         // 请求失败就把这轮用户消息也撤回，避免历史里有"提问但没有回答"的断层。

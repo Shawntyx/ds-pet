@@ -31,3 +31,9 @@ test('主动说话三个开关默认都开着，但勿扰默认关着', () => {
   assert.equal(DEFAULT_SETTINGS.proactive.randomQuestion, true);
   assert.equal(DEFAULT_SETTINGS.doNotDisturb, false);
 });
+
+test('长期记忆默认开着，提取频率和注入条数都是正数', () => {
+  assert.equal(DEFAULT_SETTINGS.memoryEnabled, true);
+  assert.ok(DEFAULT_SETTINGS.memoryExtractEveryRounds >= 1);
+  assert.ok(DEFAULT_SETTINGS.memoryInjectCount >= 1);
+});

@@ -1,0 +1,14 @@
+# 统一换行符：仓库里一律存 LF，检出到 Windows 也是 LF（Node/TypeScript 工具链都无所谓），
+# 这样就不会每次提交都刷一堆 "LF will be replaced by CRLF" 警告。
+# 如果你的编辑器更习惯 CRLF，把第一行改成 `* text=auto` 即可（git 会按平台自动转换）。
+* text=auto eol=lf
+
+# 素材是二进制，明确标出来避免被当成文本处理
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

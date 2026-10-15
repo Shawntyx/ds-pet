@@ -23,6 +23,12 @@ interface BalanceViewView {
   low: boolean;
 }
 
+interface MemoryFactView {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 interface SettingsDataView {
   baseURL: string;
   model: string;
@@ -35,6 +41,12 @@ interface SettingsDataView {
   balance: BalanceViewView;
   chatHistoryRounds: number;
   chatMessageCount: number;
+  memoryEnabled: boolean;
+  memoryExtractEveryRounds: number;
+  memoryInjectCount: number;
+  memoryFactCount: number;
+  memoryFacts: MemoryFactView[];
+  memoryFilePath: string;
   proactive: ProactiveSettingsView;
 }
 
@@ -47,6 +59,9 @@ interface Window {
     openPersonaFile(): void;
     refreshBalance(): Promise<BalanceViewView>;
     clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
+    openMemoryFile(): void;
+    deleteMemoryFact(id: string): Promise<{ ok: boolean; remaining: number }>;
+    clearMemory(): Promise<{ ok: boolean; cleared: number }>;
   };
 }
 
@@ -63,6 +78,13 @@ interface Window {
   const chatHistoryRoundsEl = document.getElementById('chatHistoryRounds') as HTMLInputElement;
   const chatHistoryHintEl = document.getElementById('chatHistoryHint') as HTMLParagraphElement;
   const clearChatHistoryBtn = document.getElementById('clearChatHistory') as HTMLButtonElement;
+  const memoryEnabledEl = document.getElementById('memoryEnabled') as HTMLInputElement;
+  const memoryExtractEveryRoundsEl = document.getElementById('memoryExtractEveryRounds') as HTMLInputElement;
+  const memoryInjectCountEl = document.getElementById('memoryInjectCount') as HTMLInputElement;
+  const memoryHintEl = document.getElementById('memoryHint') as HTMLParagraphElement;
+  const memoryListEl = document.getElementById('memoryList') as HTMLUListElement;
+  const openMemoryFileBtn = document.getElementById('openMemoryFile') as HTMLButtonElement;
+  const clearMemoryBtn = document.getElementById('clearMemory') as HTMLButtonElement;
   const balanceTextEl = document.getElementById('balanceText') as HTMLParagraphElement;
   const refreshBalanceBtn = document.getElementById('refreshBalance') as HTMLButtonElement;
   const balanceWarnThresholdEl = document.getElementById('balanceWarnThreshold') as HTMLInputElement;
@@ -102,6 +124,29 @@ interface Window {
     balanceTextEl.textContent = parts.length > 0 ? parts.join(' · ') : '还没查询过';
   }
 
+  /** 记忆列表：每条右边一个 ✕ 直接删，删完重新拉一次数据（顺便刷新条数）。 */
+  function renderMemoryList(data: SettingsDataView): void {
+    memoryListEl.innerHTML = '';
+    for (const fact of data.memoryFacts) {
+      const li = document.createElement('li');
+      const text = document.createElement('span');
+      text.textContent = fact.text;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'memory-delete';
+      del.textContent = '✕';
+      del.title = '删掉这条记忆';
+      del.addEventListener('click', async () => {
+        del.disabled = true;
+        await window.settingsAPI.deleteMemoryFact(fact.id);
+        fillForm(await window.settingsAPI.load());
+      });
+      li.appendChild(text);
+      li.appendChild(del);
+      memoryListEl.appendChild(li);
+    }
+  }
+
   function fillForm(data: SettingsDataView): void {
     apiKeyHintEl.textContent = data.hasApiKey
       ? '已设置（留空保存 = 不修改；输入新的会覆盖旧的）'
@@ -116,6 +161,16 @@ interface Window {
       data.chatMessageCount > 0
         ? `本机已保存 ${data.chatMessageCount} 条消息（约 ${Math.ceil(data.chatMessageCount / 2)} 轮）`
         : '还没有聊天记录';
+
+    memoryEnabledEl.checked = data.memoryEnabled;
+    memoryExtractEveryRoundsEl.value = String(data.memoryExtractEveryRounds);
+    memoryInjectCountEl.value = String(data.memoryInjectCount);
+    memoryHintEl.textContent =
+      data.memoryFactCount > 0
+        ? `本机已记住 ${data.memoryFactCount} 条${data.memoryFactCount > data.memoryFacts.length ? `（下面只列最近 ${data.memoryFacts.length} 条）` : ''}`
+        : '还没有记忆，聊几轮之后她自己会记（也可以随时在记忆文件里手写）';
+    renderMemoryList(data);
+
     renderBalance(data.balance);
 
     personaEl.innerHTML = '';
@@ -168,6 +223,25 @@ interface Window {
     }
   });
 
+  // 打开记忆文件（可以直接改文字、删整行）；清空全部记忆走主进程的原生确认框。
+  openMemoryFileBtn.addEventListener('click', () => {
+    window.settingsAPI.openMemoryFile();
+  });
+
+  clearMemoryBtn.addEventListener('click', async () => {
+    clearMemoryBtn.disabled = true;
+    try {
+      const result = await window.settingsAPI.clearMemory();
+      if (result.ok) {
+        statusEl.textContent = `已清空 ${result.cleared} 条记忆`;
+        statusEl.className = 'ok';
+      }
+      fillForm(await window.settingsAPI.load());
+    } finally {
+      clearMemoryBtn.disabled = false;
+    }
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     statusEl.textContent = '保存中…';
@@ -181,6 +255,9 @@ interface Window {
       afkAfterMinutes: Math.max(1, Number(afkAfterMinutesEl.value) || 3),
       balanceWarnThreshold: Math.max(0, Number(balanceWarnThresholdEl.value) || 0),
       chatHistoryRounds: Math.max(1, Number(chatHistoryRoundsEl.value) || 20),
+      memoryEnabled: memoryEnabledEl.checked,
+      memoryExtractEveryRounds: Math.max(1, Number(memoryExtractEveryRoundsEl.value) || 5),
+      memoryInjectCount: Math.max(0, Number(memoryInjectCountEl.value) || 0),
       proactive: {
         enabled: proactiveEnabledEl.checked,
         healthReminder: healthReminderEl.checked,

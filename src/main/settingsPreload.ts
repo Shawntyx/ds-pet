@@ -17,6 +17,15 @@ const bridge: SettingsBridge = {
   clearChatHistory(): Promise<{ ok: boolean; cleared: number }> {
     return ipcRenderer.invoke('settings:clear-chat-history');
   },
+  openMemoryFile(): void {
+    ipcRenderer.send('settings:open-memory-file');
+  },
+  deleteMemoryFact(id: string): Promise<{ ok: boolean; remaining: number }> {
+    return ipcRenderer.invoke('settings:delete-memory-fact', id);
+  },
+  clearMemory(): Promise<{ ok: boolean; cleared: number }> {
+    return ipcRenderer.invoke('settings:clear-memory');
+  },
 };
 
 contextBridge.exposeInMainWorld('settingsAPI', bridge);

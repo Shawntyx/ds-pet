@@ -6,6 +6,15 @@ import { hasApiKey, saveApiKey } from './secrets';
 import { refreshTrayMenu } from './tray';
 import { getBalanceView, refreshBalance } from './balance';
 import { clearMessages, flushChatStore, messageCount } from './chatStore';
+import {
+  clearFacts,
+  deleteFact,
+  ensureMemoryFile,
+  factCount,
+  flushMemoryStore,
+  getFacts,
+  memoryFilePath,
+} from './memory';
 import { registerGlobalShortcuts } from './shortcuts';
 import type { SettingsData } from '../shared/types';
 
@@ -56,6 +65,16 @@ function toSettingsData(): SettingsData {
     balance: getBalanceView(),
     chatHistoryRounds: s.chatHistoryRounds,
     chatMessageCount: messageCount(),
+    memoryEnabled: s.memoryEnabled,
+    memoryExtractEveryRounds: s.memoryExtractEveryRounds,
+    memoryInjectCount: s.memoryInjectCount,
+    memoryFactCount: factCount(),
+    // 设置页只展示最近 50 条（最新的在前）：够用来逐条删了，也不用把几百条全塞进界面。
+    memoryFacts: [...getFacts()]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 50)
+      .map((fact) => ({ id: fact.id, text: fact.text, createdAt: fact.createdAt })),
+    memoryFilePath: memoryFilePath(),
     proactive: s.proactive,
   };
 }
@@ -68,19 +87,25 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
   ipcMain.removeHandler('settings:save');
   ipcMain.removeHandler('settings:refresh-balance');
   ipcMain.removeHandler('settings:clear-chat-history');
+  ipcMain.removeHandler('settings:delete-memory-fact');
+  ipcMain.removeHandler('settings:clear-memory');
   ipcMain.removeAllListeners('settings:open-persona-file');
+  ipcMain.removeAllListeners('settings:open-memory-file');
 
   ipcMain.handle('settings:load', () => toSettingsData());
 
   ipcMain.handle('settings:save', async (_event, data: Partial<SettingsData> & { apiKey?: string }) => {
     try {
-      // balance / chatMessageCount 是只读快照不是设置项，必须剔掉，否则会被写进 settings.json。
+      // balance / chatMessageCount / memory* 都是只读快照不是设置项，必须剔掉，否则会被写进 settings.json。
       const {
         apiKey,
         hasApiKey: _ignored,
         personas: _ignored2,
         balance: _ignored3,
         chatMessageCount: _ignored4,
+        memoryFactCount: _ignored5,
+        memoryFacts: _ignored6,
+        memoryFilePath: _ignored7,
         ...patch
       } = data;
       const keyChanged = typeof apiKey === 'string' && apiKey.trim().length > 0;
@@ -142,5 +167,46 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
   ipcMain.on('settings:open-persona-file', () => {
     const settings = loadSettings();
     shell.openPath(personaFilePath(settings.activePersona));
+  });
+
+  // 打开记忆文件：用户可以直接在编辑器里改文字或删掉某几行（和"打开人设文件"一个路子）。
+  ipcMain.on('settings:open-memory-file', () => {
+    shell.openPath(ensureMemoryFile());
+  });
+
+  ipcMain.handle('settings:delete-memory-fact', (_event, id: string) => {
+    if (typeof id !== 'string') return { ok: false, remaining: factCount() };
+    const ok = deleteFact(id);
+    if (ok) flushMemoryStore();
+    return { ok, remaining: factCount() };
+  });
+
+  // 清空全部记忆：不可恢复，先弹原生确认框。
+  ipcMain.handle('settings:clear-memory', async () => {
+    const count = factCount();
+    if (count === 0) return { ok: false, cleared: 0 };
+
+    const options = {
+      type: 'question' as const,
+      buttons: ['取消', '清空'],
+      defaultId: 0,
+      cancelId: 0,
+      message: '要清空她记住的所有事吗？',
+      detail: `会删掉 ${count} 条长期记忆，清空后不可恢复（聊天记录和人设不受影响）。`,
+    };
+    const parent = settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow : petWindowRef;
+    const choice = parent
+      ? await dialog.showMessageBox(parent, options)
+      : await dialog.showMessageBox(options);
+    if (choice.response !== 1) return { ok: false, cleared: 0 };
+
+    const cleared = clearFacts();
+    flushMemoryStore();
+    petWindowRef?.webContents.send('pet:reply', {
+      text: '唔…我把记的事都忘掉了，我们重新认识一下吧？',
+      emotion: null,
+      pose: 'sweep',
+    });
+    return { ok: true, cleared };
   });
 }
