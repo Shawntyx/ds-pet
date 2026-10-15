@@ -8,6 +8,7 @@ import {
 } from './chatSession';
 import { petAnchorRect } from './petAnchor';
 import { placeBubble } from './popupPlacement';
+import { consumeProactiveLine } from './proactiveMarker';
 import { isWindowVisible, sendToWindow } from './safeSend';
 import { setWindowRect } from './windowRect';
 
@@ -31,10 +32,8 @@ let streaming = false;
 let moveListenerWindow: BrowserWindow | null = null;
 
 /** 当前气泡上显示的是哪句"她主动说的话"（完整原文）；不是主动说话时为 null。
- *  用户在气泡里回复时用它来判断"要不要开一段新对话"。 */
+ *  用户在气泡里回复时用它来判断"要不要开一段新对话"。登记方见 proactiveMarker.ts。 */
 let proactiveTextOnScreen: string | null = null;
-/** 刚说出口、还没弹出来的主动说话。showBubbleOverlay 会把它接到 proactiveTextOnScreen 上。 */
-let pendingProactiveText: string | null = null;
 
 const BUBBLE_WIDTH = 220;
 /** 气泡窗口高度是**跟着内容变的**（渲染进程量好高度报上来），下面两个是夹取范围。
@@ -67,17 +66,6 @@ export function shouldAutoHide(state: {
 export function clampBubbleHeight(height: number): number {
   if (!Number.isFinite(height)) return DEFAULT_BUBBLE_HEIGHT;
   return Math.min(BUBBLE_MAX_HEIGHT, Math.max(BUBBLE_MIN_HEIGHT, Math.round(height)));
-}
-
-/** 主动说话（健康提醒/哲学问题/窗口吐槽/余额提醒）在弹气泡之前先登记一下原文，
- *  这样用户在气泡里回复时我们能知道"他回的是哪句主动说话"。 */
-export function noteProactiveLine(text: string): void {
-  pendingProactiveText = text || null;
-}
-
-/** 当前气泡是不是"她主动说的话"（要在气泡里开新对话时用）。 */
-export function bubbleShowsProactiveLine(): boolean {
-  return proactiveTextOnScreen !== null;
 }
 
 function createBubbleWindow(): BrowserWindow {
@@ -246,10 +234,9 @@ export function showBubbleOverlay(text: string, durationMs = DEFAULT_BUBBLE_MS):
 
   // 新气泡进来：先回到"会自动收起"的状态（除非用户马上又回了一句）。
   pinned = false;
-  // 这条气泡是不是"她主动说的话"由 noteProactiveLine 提前登记；用掉就清掉，
+  // 这条气泡是不是"她主动说的话"由 proactiveMarker 提前登记；用掉就清掉，
   // 免得后面一条聊天回复/互动气泡被误判成主动说话。
-  proactiveTextOnScreen = pendingProactiveText;
-  pendingProactiveText = null;
+  proactiveTextOnScreen = consumeProactiveLine();
 
   const reveal = (): void => {
     win.webContents.send('bubble:set-text', text);

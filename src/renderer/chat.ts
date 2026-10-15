@@ -22,6 +22,7 @@ interface Window {
   const sendBtn = document.getElementById('send') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop') as HTMLButtonElement;
   const newConversationBtn = document.getElementById('newConversation') as HTMLButtonElement;
+  const balanceQueryBtn = document.getElementById('balanceQuery') as HTMLButtonElement;
 
   let pendingBubble: HTMLDivElement | null = null;
   let sending = false;
@@ -108,6 +109,14 @@ interface Window {
     addDivider('新的对话（她只记得人设和长期记忆）');
     lastUserEl = null;
     input.focus();
+  });
+
+  // 查余额：直接当成"用户问了这句话"发出去——主进程会现查一次真实余额、
+  // 塞进上下文，她用自己语气回答（数字不会是她编的）。
+  balanceQueryBtn.addEventListener('click', () => {
+    if (sending) return;
+    input.value = '我还有多少余额呀？';
+    form.requestSubmit();
   });
 
   window.chatAPI.onDelta((delta) => {

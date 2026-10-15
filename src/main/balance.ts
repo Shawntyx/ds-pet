@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { loadSettings } from './config';
-import { noteProactiveLine } from './bubbleWindow';
+import { markProactiveLine } from './proactiveMarker';
 import { loadApiKey, apiKeyStatus } from './secrets';
 import type { BalanceView } from '../shared/types';
 
@@ -42,6 +42,38 @@ export function getBalanceView(): BalanceView {
 /** 余额快照更新后要重画的地方（托盘菜单）在这里注册，避免 balance 反向 import tray 造成循环依赖。 */
 export function onBalanceChange(callback: () => void): void {
   changeListeners.push(callback);
+}
+
+/**
+ * 把余额快照说成一句给模型看的说明（纯函数，见 tests/balance.test.js）。
+ *
+ * 用户问"我还有多少钱"时，由程序去查、把真实数字塞进上下文，让模型用自己的语气说出来——
+ * 这样既不会让她瞎编数字，语气又是她自己的。
+ */
+export function describeBalanceForModel(view: BalanceView): string {
+  if (view.total !== null) {
+    const symbol = currencySymbol(view.currency);
+    const parts = [`账户余额 ${symbol}${view.total.toFixed(2)}`];
+    if (view.toppedUp !== null) parts.push(`其中充值余额 ${symbol}${view.toppedUp.toFixed(2)}`);
+    if (view.granted !== null) parts.push(`赠金 ${symbol}${view.granted.toFixed(2)}`);
+    parts.push(view.low ? '已经低于用户设置的提醒阈值' : '余额充足');
+    return parts.join('；');
+  }
+  if (!view.supported) return '当前 API 服务没有余额查询接口，查不到余额';
+  return view.error ? `暂时查不到余额（${view.error}）` : '暂时查不到余额';
+}
+
+const CHAT_STALE_MS = 60_000;
+
+/**
+ * 聊天里问到余额时用：数据太旧就先重查一次，然后返回给模型的说明。
+ * 只在这里主动查——平时靠启动 + 每 6 小时的定时，不额外增加请求。
+ */
+export async function balanceContextForChat(): Promise<string> {
+  const view = getBalanceView();
+  const stale = !view.fetchedAt || Date.now() - view.fetchedAt > CHAT_STALE_MS;
+  const snapshot = stale || view.error ? await refreshBalance() : view;
+  return describeBalanceForModel(snapshot);
 }
 
 function toNumber(value: string | undefined): number | null {
@@ -129,7 +161,7 @@ function notifyPetIfLow(): void {
   if (isLow && !lastReportedLow && petWindowRef && !petWindowRef.isDestroyed()) {
     const amount = `${currencySymbol(snapshot.currency)}${(snapshot.total ?? 0).toFixed(2)}`;
     const text = `余额只剩 ${amount} 了，记得充值哦，不然我就没法陪你聊天啦。`;
-    noteProactiveLine(text);
+    markProactiveLine(text);
     petWindowRef.webContents.send('pet:balance-low', { text });
   }
   // 只有"成功查到余额"时才更新这个标记：网络抖动导致的查询失败不该重新武装提醒。

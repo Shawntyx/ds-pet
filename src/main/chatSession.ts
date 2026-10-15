@@ -14,6 +14,7 @@ import {
   type StoredMessage,
 } from './chatStore';
 import { memorySection, noteCompletedExchange } from './memory';
+import { balanceContextForChat } from './balance';
 
 export const EMOTION_TAGS = ['happy', 'shy', 'sad', 'angry', 'surprised', 'love'] as const;
 export type Emotion = (typeof EMOTION_TAGS)[number];
@@ -53,13 +54,29 @@ function buildSystemPrompt(): string {
 }
 
 /** 发给模型的上下文：人设 + 长期记忆 + **当前这段对话**最近的 N 轮。
- *  （更早的对话留在文件里给用户翻，不进上下文；人设和记忆照旧，所以她还是记得你。） */
-function buildContextMessages(): ChatMessage[] {
+ *  （更早的对话留在文件里给用户翻，不进上下文；人设和记忆照旧，所以她还是记得你。）
+ *  extraSystemText 用于临时补一段系统说明（比如用户问到余额时把实时余额带进去）。 */
+function buildContextMessages(extraSystemText?: string | null): ChatMessage[] {
   const settings = loadSettings();
+  const system = buildSystemPrompt();
   return [
-    { role: 'system', content: buildSystemPrompt() },
+    {
+      role: 'system',
+      content: extraSystemText ? `${system}\n\n${extraSystemText}` : system,
+    },
     ...recentRounds(getConversationMessages(), settings.chatHistoryRounds),
   ];
+}
+
+/**
+ * 用户是不是在问余额（纯函数，见 tests/chatSession.test.js）。
+ * 命中就由程序去查真实余额、塞进上下文，让模型用自己的语气回答，而不是让她编数字。
+ * "余额宝"是理财产品，属于常见误判，直接排除掉。
+ */
+export function isBalanceQuestion(text: string): boolean {
+  if (!text) return false;
+  if (text.includes('余额宝')) return false;
+  return /(余额|额度|还剩多少钱|还剩多少|欠费|balance)/i.test(text);
 }
 
 /**
@@ -188,9 +205,21 @@ export async function sendUserMessage(
     if (seed) appendMessage({ role: 'assistant', content: seed });
   }
   appendMessage({ role: 'user', content: userText });
-  const messages: ChatMessage[] = buildContextMessages();
 
+  // 先切"思考中"：查余额也要花一下（最坏是超时），别让她看起来像没反应。
   handlers.onThinkingStart();
+
+  // 问到余额：现查一次（数据超过 1 分钟就重查），把真实数字作为临时系统说明带上。
+  let extraContext: string | null = null;
+  if (isBalanceQuestion(userText)) {
+    const summary = await balanceContextForChat();
+    extraContext =
+      '（系统提示：用户在问账户余额。下面是刚刚查到的实时数据，请用你自己的语气回答，' +
+      '不要编造数字，也不要提到"系统提示"这个词。）\n' +
+      `账户余额情况：${summary}`;
+  }
+
+  const messages: ChatMessage[] = buildContextMessages(extraContext);
 
   try {
     await provider.streamChat(

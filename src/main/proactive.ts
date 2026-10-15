@@ -2,7 +2,7 @@ import { BrowserWindow, powerMonitor } from 'electron';
 import { loadSettings } from './config';
 import { generateProactiveLine, isChatBusy } from './chatSession';
 import { isChatWindowOpen } from './chatWindow';
-import { noteProactiveLine } from './bubbleWindow';
+import { markProactiveLine } from './proactiveMarker';
 import { getActiveWindowInfo } from './activeWindow';
 import { isTitleSensitive, parseFilterWords } from './privacyFilter';
 import { pickHealthLine, pickPhilosophicalQuestion } from './proactiveLines';
@@ -31,12 +31,12 @@ function rollNextInterval(avgMinutes: number): number {
  *
  * 主动说话**不进聊天记录**（用户明确要求的：否则她自己的碎碎念会混进对话，你在气泡下回复时上下文就乱了）。
  * 取而代之：先把这句话登记成"主动说话"，用户在气泡里回她时，那句回复会开启一段新对话、
- * 并以这句话开头（见 bubbleWindow.ts 的 noteProactiveLine）。
+ * 并以这句话开头（见 proactiveMarker.ts）。
  * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。
  * 聊天面板开着时不弹气泡——那句话说出口的同时它已经在面板里了，弹出来只会挡视线。
  */
 function speak(text: string, emotion: string | null, pose: string | null = null): void {
-  noteProactiveLine(text);
+  markProactiveLine(text);
   sendToWindow(petWindowRef, 'pet:reply', {
     text,
     emotion,

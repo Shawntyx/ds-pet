@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseBalancePayload } = require('../dist/main/balance');
+const { parseBalancePayload, describeBalanceForModel } = require('../dist/main/balance');
 
 test('正常响应能解析出余额明细', () => {
   const result = parseBalancePayload({
@@ -49,4 +49,69 @@ test('只给部分字段也不会炸', () => {
   assert.equal(result.currency, 'CNY'); // 缺 currency 时按人民币兜底
   assert.equal(result.granted, null);
   assert.equal(result.toppedUp, null);
+});
+
+test('给模型看的余额说明：正常情况带上数字和组成', () => {
+  const text = describeBalanceForModel({
+    ok: true,
+    supported: true,
+    currency: 'CNY',
+    total: 12.34,
+    granted: 2,
+    toppedUp: 10.34,
+    fetchedAt: Date.now(),
+    error: null,
+    low: false,
+  });
+  assert.ok(text.includes('¥12.34'));
+  assert.ok(text.includes('充值余额 ¥10.34'));
+  assert.ok(text.includes('赠金 ¥2.00'));
+  assert.ok(text.includes('余额充足'));
+});
+
+test('余额偏低时说明里会点出来', () => {
+  const text = describeBalanceForModel({
+    ok: true,
+    supported: true,
+    currency: 'CNY',
+    total: 1,
+    granted: 0,
+    toppedUp: 1,
+    fetchedAt: Date.now(),
+    error: null,
+    low: true,
+  });
+  assert.ok(text.includes('低于'));
+});
+
+test('服务不支持余额接口 / 查询失败 / 没配 Key，都说人话而不是抛错', () => {
+  const base = { total: null, granted: null, toppedUp: null, fetchedAt: null, low: false };
+  assert.ok(
+    describeBalanceForModel({ ...base, ok: false, supported: false, currency: null, error: '这个服务没有余额查询接口' }).includes(
+      '没有余额查询接口'
+    )
+  );
+  assert.ok(
+    describeBalanceForModel({ ...base, ok: false, supported: true, currency: null, error: '还没有设置 API Key' }).includes(
+      '还没有设置 API Key'
+    )
+  );
+  assert.ok(
+    describeBalanceForModel({ ...base, ok: false, supported: true, currency: null, error: null }).includes('暂时查不到')
+  );
+});
+
+test('美元账户用 $', () => {
+  const text = describeBalanceForModel({
+    ok: true,
+    supported: true,
+    currency: 'USD',
+    total: 3.5,
+    granted: null,
+    toppedUp: null,
+    fetchedAt: Date.now(),
+    error: null,
+    low: false,
+  });
+  assert.ok(text.includes('$3.50'));
 });

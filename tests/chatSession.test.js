@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { extractEmotion, createTagStrippingRelay } = require('../dist/main/chatSession');
+const { extractEmotion, createTagStrippingRelay, isBalanceQuestion } = require('../dist/main/chatSession');
 
 test('extractEmotion 摘掉开头的标签', () => {
   assert.deepEqual(extractEmotion('[happy]你好呀'), { text: '你好呀', emotion: 'happy' });
@@ -74,4 +74,29 @@ test('普通文本按原样流式输出', () => {
 test('开头一直像标签但迟迟不闭合，到上限就放弃等待', () => {
   const long = '[' + 'a'.repeat(25);
   assert.equal(relayThrough([long]), long);
+});
+
+test('问到余额能认出来（用来把实时余额喂给模型）', () => {
+  const yes = [
+    '我还有多少余额呀？',
+    '余额还剩多少',
+    '帮我查一下余额',
+    '账户余额不足了吗',
+    'check my balance',
+    '我的额度还有吗',
+  ];
+  for (const text of yes) {
+    assert.equal(isBalanceQuestion(text), true, `应该认出来: ${text}`);
+  }
+});
+
+test('"余额宝"这种理财产品不算查余额', () => {
+  assert.equal(isBalanceQuestion('余额宝最近收益率怎么样'), false);
+});
+
+test('普通聊天不会被误判成查余额', () => {
+  const no = ['今天天气不错', '帮我看看这段代码', '我们聊到哪儿了', ''];
+  for (const text of no) {
+    assert.equal(isBalanceQuestion(text), false, `不该误判: ${text}`);
+  }
 });
