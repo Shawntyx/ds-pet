@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron';
 import { loadSettings } from './config';
 import { markProactiveLine } from './proactiveMarker';
+import { sendToWindow } from './safeSend';
 import { loadApiKey, apiKeyStatus } from './secrets';
 import type { BalanceView } from '../shared/types';
 
@@ -52,12 +53,8 @@ export function onBalanceChange(callback: () => void): void {
  */
 export function describeBalanceForModel(view: BalanceView): string {
   if (view.total !== null) {
-    const symbol = currencySymbol(view.currency);
-    const parts = [`账户余额 ${symbol}${view.total.toFixed(2)}`];
-    if (view.toppedUp !== null) parts.push(`其中充值余额 ${symbol}${view.toppedUp.toFixed(2)}`);
-    if (view.granted !== null) parts.push(`赠金 ${symbol}${view.granted.toFixed(2)}`);
-    parts.push(view.low ? '已经低于用户设置的提醒阈值' : '余额充足');
-    return parts.join('；');
+    const status = view.low ? '已经低于用户设置的提醒阈值' : '余额充足';
+    return `账户余额 ${formatBalanceDetail(view)}；${status}`;
   }
   if (!view.supported) return '当前 API 服务没有余额查询接口，查不到余额';
   return view.error ? `暂时查不到余额（${view.error}）` : '暂时查不到余额';
@@ -86,6 +83,50 @@ export function currencySymbol(currency: string | null): string {
   return currency === 'USD' ? '$' : '¥';
 }
 
+/**
+ * 下面三个格式化函数是"余额显示唯一出处"：托盘菜单、设置页、气泡、以及喂给模型的说明
+ * 全都走它们，保证同一个数字在各处长得一样（之前设置页和气泡各写各的，出过不一致）。
+ */
+
+/** 短的：`¥9.68`；查不到时给一句人话。 */
+export function formatBalanceBrief(view: BalanceView): string {
+  if (view.total !== null) {
+    return `${currencySymbol(view.currency)}${view.total.toFixed(2)}`;
+  }
+  if (!view.supported) return '该服务不支持余额查询';
+  return view.error ?? '还没查到';
+}
+
+/** 详细一点：`¥9.68（充值 ¥9.28 + 赠金 ¥0.39）`。 */
+export function formatBalanceDetail(view: BalanceView): string {
+  if (view.total === null) return formatBalanceBrief(view);
+  const symbol = currencySymbol(view.currency);
+  const parts = [`${symbol}${view.total.toFixed(2)}`];
+  const extras: string[] = [];
+  if (view.toppedUp !== null) extras.push(`充值 ${symbol}${view.toppedUp.toFixed(2)}`);
+  if (view.granted !== null) extras.push(`赠金 ${symbol}${view.granted.toFixed(2)}`);
+  return extras.length > 0 ? `${parts[0]}（${extras.join(' + ')}）` : parts[0];
+}
+
+/** 她开口说的一句（气泡用，也用于余额不足的提醒）。 */
+export function formatBalanceSpeech(view: BalanceView): string {
+  if (view.total !== null) {
+    const detail = formatBalanceDetail(view);
+    return view.low
+      ? `现在只剩 ${detail} 了，记得充值哦，不然我就没法陪你聊天啦。`
+      : `现在余额是 ${detail}，还够我们聊好一阵呢～`;
+  }
+  if (!view.supported) return '这个 API 服务没有余额查询接口，我查不到余额呢。';
+  return `我暂时查不到余额…（${view.error ?? '原因未知'}）`;
+}
+
+/** 设置页显示的那一行：数字 + （如果有失败原因）附在后面，说明这是上一次查到的数。 */
+export function formatBalanceForSettings(view: BalanceView): string {
+  const detail = formatBalanceDetail(view);
+  if (view.ok || view.total === null) return detail;
+  return `${detail}（最近一次查询失败：${view.error ?? '原因未知'}）`;
+}
+
 interface QueryResult {
   supported?: boolean;
   currency?: string;
@@ -96,13 +137,20 @@ interface QueryResult {
 }
 
 /**
- * 解析 /user/balance 的响应体。单独抽出来是为了能脱离网络单独测（见 tests/balance.test.js）——
- * 这里最容易出错的是"0 元"和"字段缺失"的区别：余额真的为 0 时 total_balance 是字符串 "0"，
- * 必须当成"查到了，余额是 0"，不能当成没查到。
+ * 解析 /user/balance 的响应体。单独抽出来是为了能脱离网络单独测（见 tests/balance.test.js）。
+ *
+ * 两个坑：
+ *  1) 响应里的 balance_infos 是**多条**（实测 DeepSeek 同时给 CNY 和 USD），而且**顺序不固定**——
+ *     直接取 [0] 会碰上美元那条是 0.00，界面就显示成 0（用户实际踩到过"有时候查到 0"）。
+ *     所以要挑出用户真正在用的那条（见 pickPrimaryInfo）。
+ *  2) 余额真的是 0 时 total_balance 是字符串 "0"，必须当成"查到了，余额是 0"，不能当成没查到。
  */
 export function parseBalancePayload(payload: unknown): QueryResult {
   const infos = (payload as { balance_infos?: unknown })?.balance_infos;
-  const info = Array.isArray(infos) ? (infos[0] as Record<string, string> | undefined) : undefined;
+  const list = Array.isArray(infos)
+    ? infos.filter((item): item is Record<string, string> => !!item && typeof item === 'object')
+    : [];
+  const info = pickPrimaryInfo(list);
   const total = toNumber(info?.total_balance);
   if (!info || total === null) {
     return { supported: false, error: '接口没有返回可用的余额信息' };
@@ -113,6 +161,20 @@ export function parseBalancePayload(payload: unknown): QueryResult {
     granted: toNumber(info.granted_balance),
     toppedUp: toNumber(info.topped_up_balance),
   };
+}
+
+/**
+ * 从多条余额里挑"用户真正在用的那条"（纯函数）。
+ * 规则：先挑余额不为 0 的；这些里面优先人民币；都挑不出来就退回第一条。
+ * 这样美元的 0.00 不会盖掉人民币的真实余额。
+ */
+export function pickPrimaryInfo(
+  list: Array<Record<string, string | undefined>>
+): Record<string, string | undefined> | undefined {
+  if (list.length === 0) return undefined;
+  const nonZero = list.filter((item) => (toNumber(item.total_balance) ?? 0) > 0);
+  const pool = nonZero.length > 0 ? nonZero : list;
+  return pool.find((item) => item.currency === 'CNY') ?? pool[0];
 }
 
 async function queryBalance(): Promise<QueryResult> {
@@ -159,13 +221,32 @@ async function queryBalance(): Promise<QueryResult> {
 function notifyPetIfLow(): void {
   const isLow = snapshot.ok && snapshot.low;
   if (isLow && !lastReportedLow && petWindowRef && !petWindowRef.isDestroyed()) {
-    const amount = `${currencySymbol(snapshot.currency)}${(snapshot.total ?? 0).toFixed(2)}`;
-    const text = `余额只剩 ${amount} 了，记得充值哦，不然我就没法陪你聊天啦。`;
+    const text = formatBalanceSpeech(snapshot);
     markProactiveLine(text);
     petWindowRef.webContents.send('pet:balance-low', { text });
   }
   // 只有"成功查到余额"时才更新这个标记：网络抖动导致的查询失败不该重新武装提醒。
   if (snapshot.ok) lastReportedLow = isLow;
+}
+
+/**
+ * 右键菜单"查余额"用：现查一次（数据太旧才真查），让她冒个气泡说出来。
+ * 走的是和"余额不足提醒"同一条气泡路径；也登记成主动说话，
+ * 这样用户在气泡里接着问会开启一段新对话。
+ */
+export async function announceBalance(): Promise<string> {
+  const view = getBalanceView();
+  const stale = !view.fetchedAt || Date.now() - view.fetchedAt > CHAT_STALE_MS;
+  const current = stale || view.error ? await refreshBalance() : view;
+  const text = formatBalanceSpeech(current);
+  markProactiveLine(text);
+  sendToWindow(petWindowRef, 'pet:reply', {
+    text,
+    emotion: current.low ? null : 'happy',
+    pose: current.low ? 'balanceLow' : null,
+    bubble: true,
+  });
+  return text;
 }
 
 /** 查一次余额并更新快照；不管成功失败都会通知监听者（托盘菜单要重画）。 */

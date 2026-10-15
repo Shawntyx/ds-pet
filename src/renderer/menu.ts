@@ -22,6 +22,7 @@ interface MenuItemDef {
 (function () {
   const ITEMS: MenuItemDef[] = [
     { id: 'chat', label: '💬 聊天' },
+    { id: 'balance', label: '💰 查余额' },
     { id: 'feed', label: '🍪 投喂' },
     { id: 'poke', label: '👉 戳一下' },
     { id: 'praise', label: '✨ 夸夸' },

@@ -2,7 +2,15 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseBalancePayload, describeBalanceForModel } = require('../dist/main/balance');
+const {
+  parseBalancePayload,
+  pickPrimaryInfo,
+  describeBalanceForModel,
+  formatBalanceBrief,
+  formatBalanceDetail,
+  formatBalanceSpeech,
+  formatBalanceForSettings,
+} = require('../dist/main/balance');
 
 test('正常响应能解析出余额明细', () => {
   const result = parseBalancePayload({
@@ -64,7 +72,8 @@ test('给模型看的余额说明：正常情况带上数字和组成', () => {
     low: false,
   });
   assert.ok(text.includes('¥12.34'));
-  assert.ok(text.includes('充值余额 ¥10.34'));
+  // 措辞和设置页/气泡共用 formatBalanceDetail，所以是"（充值 … + 赠金 …）"
+  assert.ok(text.includes('充值 ¥10.34'));
   assert.ok(text.includes('赠金 ¥2.00'));
   assert.ok(text.includes('余额充足'));
 });
@@ -114,4 +123,117 @@ test('美元账户用 $', () => {
     low: false,
   });
   assert.ok(text.includes('$3.50'));
+});
+
+// —— 多币种：真实接口会同时返回 CNY 和 USD 两条，而且顺序不固定。
+// 之前直接取 [0]，碰上美元那条在前就显示 0（用户实际踩到"有时候查到 0"）。
+const cny = { currency: 'CNY', total_balance: '9.68', granted_balance: '0.39', topped_up_balance: '9.28' };
+const usdZero = { currency: 'USD', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' };
+
+test('人民币在前：取人民币', () => {
+  const result = parseBalancePayload({ balance_infos: [cny, usdZero] });
+  assert.equal(result.currency, 'CNY');
+  assert.equal(result.total, 9.68);
+});
+
+test('美元在前（金额为 0）：仍然取人民币，不能显示成 0', () => {
+  const result = parseBalancePayload({ balance_infos: [usdZero, cny] });
+  assert.equal(result.currency, 'CNY');
+  assert.equal(result.total, 9.68);
+  assert.equal(result.granted, 0.39);
+  assert.equal(result.toppedUp, 9.28);
+});
+
+test('两个币种都有余额时优先人民币', () => {
+  const result = parseBalancePayload({
+    balance_infos: [
+      { currency: 'USD', total_balance: '2.00' },
+      { currency: 'CNY', total_balance: '9.68' },
+    ],
+  });
+  assert.equal(result.currency, 'CNY');
+  assert.equal(result.total, 9.68);
+});
+
+test('确实都是 0 时如实报 0（不能当成查不到）', () => {
+  const result = parseBalancePayload({ balance_infos: [usdZero] });
+  assert.equal(result.total, 0);
+  assert.equal(result.currency, 'USD');
+});
+
+test('pickPrimaryInfo 对空数组返回 undefined', () => {
+  assert.equal(pickPrimaryInfo([]), undefined);
+});
+
+test('三个格式化函数：数字一致，措辞分场景', () => {
+  const view = {
+    ok: true,
+    supported: true,
+    currency: 'CNY',
+    total: 9.68,
+    granted: 0.39,
+    toppedUp: 9.28,
+    fetchedAt: Date.now(),
+    error: null,
+    low: false,
+  };
+  assert.equal(formatBalanceBrief(view), '¥9.68');
+  assert.equal(formatBalanceDetail(view), '¥9.68（充值 ¥9.28 + 赠金 ¥0.39）');
+  assert.ok(formatBalanceSpeech(view).includes('¥9.68'));
+  assert.ok(formatBalanceSpeech(view).includes('还够'));
+  assert.equal(formatBalanceForSettings(view), '¥9.68（充值 ¥9.28 + 赠金 ¥0.39）');
+});
+
+test('余额偏低时措辞变成提醒', () => {
+  const view = {
+    ok: true,
+    supported: true,
+    currency: 'CNY',
+    total: 1,
+    granted: 0,
+    toppedUp: 1,
+    fetchedAt: Date.now(),
+    error: null,
+    low: true,
+  };
+  assert.ok(formatBalanceSpeech(view).includes('只剩'));
+  assert.ok(formatBalanceSpeech(view).includes('充值'));
+});
+
+test('查不到余额时三个函数都给一句人话（而不是 0 或 undefined）', () => {
+  const unsupported = {
+    ok: false,
+    supported: false,
+    currency: null,
+    total: null,
+    granted: null,
+    toppedUp: null,
+    fetchedAt: null,
+    error: '这个服务没有余额查询接口',
+    low: false,
+  };
+  assert.ok(formatBalanceBrief(unsupported).includes('不支持'));
+  assert.ok(formatBalanceSpeech(unsupported).includes('查不到'));
+  assert.ok(formatBalanceForSettings(unsupported).includes('不支持'));
+
+  const failed = { ...unsupported, supported: true, error: '查询超时（网络或服务端没响应）' };
+  assert.ok(formatBalanceBrief(failed).includes('查询超时'));
+  assert.ok(formatBalanceSpeech(failed).includes('查询超时'));
+});
+
+test('有旧数字但这次查询失败：设置页会说明"这是上次的数"', () => {
+  const stale = {
+    ok: false,
+    supported: true,
+    currency: 'CNY',
+    total: 9.68,
+    granted: 0.39,
+    toppedUp: 9.28,
+    fetchedAt: Date.now() - 3600_000,
+    error: '查询超时（网络或服务端没响应）',
+    low: false,
+  };
+  const text = formatBalanceForSettings(stale);
+  assert.ok(text.includes('¥9.68'));
+  assert.ok(text.includes('最近一次查询失败'));
 });

@@ -222,6 +222,8 @@ export interface SettingsData {
   balanceWarnThreshold: number;
   /** 余额快照：设置页只读显示，点"立即查询"会触发主进程重新查一次 */
   balance: BalanceView;
+  /** 余额那一行显示什么（主进程用统一的格式化函数拼好，各处显示才一致） */
+  balanceText: string;
   /** 只带最近多少轮发给模型 */
   chatHistoryRounds: number;
   /** 本机已经存了多少条聊天消息（设置页显示"当前记录"用） */
@@ -244,6 +246,8 @@ export interface SettingsBridge {
   save(data: Partial<SettingsData> & { apiKey?: string }): Promise<{ ok: boolean; error?: string }>;
   openPersonaFile(): void;
   refreshBalance(): Promise<BalanceView>;
+  /** 主进程查到新余额时主动推过来，设置页不用重新打开就能看到最新数字 */
+  onBalanceChanged(callback: (data: SettingsData) => void): void;
   /** 清空本机聊天记录；主进程会先弹一个原生确认框，用户取消就返回 ok:false。 */
   clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
   /** 用系统默认程序打开记忆文件（可以直接手改/删条目） */

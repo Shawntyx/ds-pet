@@ -4,8 +4,8 @@ import { loadSettings, updateSettings } from './config';
 import { listPersonas, personaFilePath } from './persona';
 import { apiKeyStatus, describeApiKeyStatus, hasApiKey, saveApiKey } from './secrets';
 import { refreshTrayMenu } from './tray';
-import { getBalanceView, refreshBalance } from './balance';
-import { sendToWindow } from './safeSend';
+import { formatBalanceForSettings, getBalanceView, onBalanceChange, refreshBalance } from './balance';
+import { sendToWindow, isWindowVisible } from './safeSend';
 import { clearMessages, flushChatStore, messageCount } from './chatStore';
 import {
   clearFacts,
@@ -22,6 +22,8 @@ import type { SettingsData } from '../shared/types';
 let settingsWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
 let setVisibleRef: ((visible: boolean) => void) | null = null;
+/** onBalanceChange 没有反注册，这个模块又在窗口重建时会被重复调用，所以只挂一次。 */
+let balanceListenerBound = false;
 
 function createSettingsWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -68,6 +70,7 @@ function toSettingsData(): SettingsData {
     afkAfterMinutes: s.afkAfterMinutes,
     balanceWarnThreshold: s.balanceWarnThreshold,
     balance: getBalanceView(),
+    balanceText: formatBalanceForSettings(getBalanceView()),
     chatHistoryRounds: s.chatHistoryRounds,
     chatMessageCount: messageCount(),
     memoryEnabled: s.memoryEnabled,
@@ -87,6 +90,17 @@ function toSettingsData(): SettingsData {
 export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boolean) => void): void {
   petWindowRef = petWindow;
   setVisibleRef = setVisible;
+
+  // 余额一变就把最新数据推给打开着的设置页——不然它会一直显示打开那一刻的旧数字
+  // （用户就踩到过：设置页显示 0，其实那时已经查到真余额了）。
+  if (!balanceListenerBound) {
+    balanceListenerBound = true;
+    onBalanceChange(() => {
+      if (isWindowVisible(settingsWindow)) {
+        sendToWindow(settingsWindow, 'settings:balance-changed', toSettingsData());
+      }
+    });
+  }
 
   ipcMain.removeHandler('settings:load');
   ipcMain.removeHandler('settings:save');

@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
+import { announceBalance } from './balance';
 import { refreshTrayMenu } from './tray';
 import { showChatWindow } from './chatWindow';
 import { showSettingsWindow } from './settingsWindow';
@@ -11,8 +12,8 @@ import { setWindowRect } from './windowRect';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
-// 7 个菜单项 + 1 条分隔线 + 容器内边距，实测 268 会把最后一项裁掉一点，留够余量。
-const MENU_HEIGHT = 320;
+// 8 个菜单项 + 1 条分隔线 + 容器内边距；加一项就要往上加高度，不然最后一项会被裁掉。
+const MENU_HEIGHT = 356;
 
 let menuWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
@@ -105,6 +106,10 @@ function handleAction(actionId: string): void {
       break;
     case 'chat':
       showChatWindow();
+      break;
+    case 'balance':
+      // 现查一次余额，让她冒个气泡说出来（数字走和设置页/托盘同一个格式化函数）。
+      void announceBalance();
       break;
     case 'settings':
       showSettingsWindow();

@@ -42,6 +42,8 @@ interface SettingsDataView {
   afkAfterMinutes: number;
   balanceWarnThreshold: number;
   balance: BalanceViewView;
+  /** 余额那一行的文字（主进程用统一格式化函数拼好，和托盘/气泡显示的是同一个数） */
+  balanceText: string;
   chatHistoryRounds: number;
   chatMessageCount: number;
   memoryEnabled: boolean;
@@ -61,6 +63,7 @@ interface Window {
     ): Promise<{ ok: boolean; error?: string }>;
     openPersonaFile(): void;
     refreshBalance(): Promise<BalanceViewView>;
+    onBalanceChanged(callback: (data: SettingsDataView) => void): void;
     clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
     openMemoryFile(): void;
     deleteMemoryFact(id: string): Promise<{ ok: boolean; remaining: number }>;
@@ -114,18 +117,15 @@ interface Window {
     return `${Math.floor(hours / 24)} 天前`;
   }
 
-  function renderBalance(view: BalanceViewView): void {
-    const parts: string[] = [];
-    if (view.total !== null) {
-      const symbol = currencySymbol(view.currency);
-      parts.push(`当前余额 ${symbol}${view.total.toFixed(2)}`);
-      if (view.toppedUp !== null) parts.push(`充值 ${symbol}${view.toppedUp.toFixed(2)}`);
-      if (view.granted !== null) parts.push(`赠金 ${symbol}${view.granted.toFixed(2)}`);
-      if (view.fetchedAt) parts.push(`${describeAge(view.fetchedAt)}查的`);
-    }
-    if (view.error) parts.push(view.error);
-    if (view.low) parts.push('⚠️ 已低于提醒阈值');
-    balanceTextEl.textContent = parts.length > 0 ? parts.join(' · ') : '还没查询过';
+  /**
+   * 余额那一行：文字直接用主进程拼好的（托盘菜单、气泡、聊天里都是同一个格式化函数），
+   * 这里只补一个"多久前查的"。余额偏低时标红。
+   */
+  function renderBalance(data: SettingsDataView): void {
+    const view = data.balance;
+    const age = view.fetchedAt ? `${describeAge(view.fetchedAt)}查的` : '还没成功查过';
+    balanceTextEl.textContent = `${data.balanceText} · ${age}${view.low ? ' · ⚠️ 已低于提醒阈值' : ''}`;
+    balanceTextEl.className = view.low ? 'hint warn' : 'hint';
   }
 
   /** 记忆列表：每条右边一个 ✕ 直接删，删完重新拉一次数据（顺便刷新条数）。 */
@@ -177,7 +177,7 @@ interface Window {
         : '还没有记忆，聊几轮之后她自己会记（也可以随时在记忆文件里手写）';
     renderMemoryList(data);
 
-    renderBalance(data.balance);
+    renderBalance(data);
 
     personaEl.innerHTML = '';
     for (const name of data.personas) {
@@ -205,10 +205,17 @@ interface Window {
     refreshBalanceBtn.disabled = true;
     balanceTextEl.textContent = '查询中…';
     try {
-      renderBalance(await window.settingsAPI.refreshBalance());
+      await window.settingsAPI.refreshBalance();
+      renderBalance(await window.settingsAPI.load());
     } finally {
       refreshBalanceBtn.disabled = false;
     }
+  });
+
+  // 主进程查到新余额（启动查询、6 小时定时、聊天里现查）时主动推过来：
+  // 只更新余额那一行，不动用户正在填的表单。
+  window.settingsAPI.onBalanceChanged((data) => {
+    renderBalance(data);
   });
 
   // 清空聊天记录：确认框在主进程弹（原生对话框），这里只负责禁用按钮和刷新显示。

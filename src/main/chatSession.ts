@@ -210,11 +210,10 @@ export async function sendUserMessage(
   handlers.onThinkingStart();
 
   // 问到余额：现查一次（数据超过 1 分钟就重查），把真实数字作为临时系统说明带上。
+  // 成功时**不打日志**（用户不希望每问一次终端就刷一行）；查询本身失败会在界面上体现。
   let extraContext: string | null = null;
   if (isBalanceQuestion(userText)) {
     const summary = await balanceContextForChat();
-    // 打一行日志：以后"查余额没反应"这类问题，看终端就知道是没识别、还是查不到。
-    console.log(`[whale-pet] 识别到查余额，已附上实时数据：${summary}`);
     extraContext =
       '（系统提示：用户在问账户余额。下面是刚刚查到的实时数据，请用你自己的语气回答，' +
       '不要编造数字，也不要提到"系统提示"这个词。）\n' +
