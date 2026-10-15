@@ -27,24 +27,37 @@ interface Window {
   const input = document.getElementById('quickInput') as HTMLInputElement;
 
   let streaming = false;
-  let resizeTimer: number | null = null;
+  let resizeScheduled = false;
 
   /**
-   * 把"装下当前内容需要多高"报给主进程。body 的 gap 是 6px、上下 padding 是 4+4，
-   * 这里一起算进去，免得每次都比实际需要矮一点、又触发一轮调整。
+   * 把"装下当前内容需要多高"报给主进程。
+   *
+   * 直接用 DOM 实测（气泡高度 + 两个元素之间的间距 + 输入框高度 + body 的上下 padding），
+   * 而不是写死常量——CSS 以后调整留白也不会再算错高度（算矮了就会被贴底排从顶部裁掉）。
    */
   function reportSize(): void {
-    const needed = Math.ceil(wrapEl.offsetHeight + form.offsetHeight + 6 + 8);
+    const wrapRect = wrapEl.getBoundingClientRect();
+    const formRect = form.getBoundingClientRect();
+    const bodyStyle = window.getComputedStyle(document.body);
+    const padTop = parseFloat(bodyStyle.paddingTop) || 0;
+    const padBottom = parseFloat(bodyStyle.paddingBottom) || 0;
+    const gap = Math.max(0, formRect.top - wrapRect.bottom);
+    const needed = Math.ceil(wrapRect.height + gap + formRect.height + padTop + padBottom);
     window.bubbleAPI.resize(needed);
   }
 
-  /** 流式回复时每个字都量一次太抖，攒一小会儿再报；文字一多就往上长，长到上限后内部滚动。 */
+  /**
+   * 流式回复时每来一个字都要重新量高度，而且**必须跟得上文字**：
+   * 窗口只要比内容矮一帧，贴底排就会把气泡顶部切掉（用户看到的就是"上面被剪切了"）。
+   * 用 requestAnimationFrame 合帧：一帧最多量一次，既跟得上又不会太密集。
+   */
   function scheduleResize(): void {
-    if (resizeTimer !== null) return;
-    resizeTimer = window.setTimeout(() => {
-      resizeTimer = null;
+    if (resizeScheduled) return;
+    resizeScheduled = true;
+    window.requestAnimationFrame(() => {
+      resizeScheduled = false;
       reportSize();
-    }, 120);
+    });
   }
 
   window.bubbleAPI.onSetText((text) => {

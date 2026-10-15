@@ -1,6 +1,24 @@
-html, body {
+/*
+ * 注意 html 和 body 要分开写：
+ * 之前把 html/body 写在同一组规则里、两边都给了 padding: 4px，于是 body 的 height:100%
+ * 是相对"html 的内容盒"算的（窗口 80 - html 的上下 padding 8 = 72），再减去 body 自己的
+ * 上下 padding 8，只剩 64px 可用——而气泡 + 输入框本来就要 71px，溢出被贴底排从**顶部**裁掉，
+ * 表现就是"气泡顶部被切平、圆角没了"（和文字长短无关，因为底子就不够高）。
+ * html 不要 padding、不要 flex，只留给 body。
+ */
+html {
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 4px;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   background: transparent;
@@ -13,8 +31,6 @@ html, body {
   /* 贴底排：输入框永远固定在窗口底部，文字多了往上长，不会被挤出窗口 */
   justify-content: flex-end;
   gap: 6px;
-  box-sizing: border-box;
-  padding: 4px;
 }
 
 /* 文字框和右上角的 × 放一个相对定位的容器里；容器宽度跟着文字走，好让 × 贴着气泡右上角 */
@@ -27,11 +43,12 @@ html, body {
 
 #bubble {
   max-width: 208px;
-  /* 最多长到这么高，再长就在气泡内部滚动（SVG 里能滚，不会再把输入框顶出屏幕） */
+  /* 最多长到这么高，再长就在气泡内部滚动（不会再把输入框顶出屏幕） */
   max-height: 240px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 14px 8px 12px;
+  /* 右边留出 × 的位置（× 就在气泡里，不再挂到窗口外，免得被窗口边缘切掉） */
+  padding: 8px 22px 8px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(242, 139, 171, 0.35);
@@ -45,23 +62,24 @@ html, body {
   cursor: pointer;
 }
 
-/* 主动关闭气泡的小 × ：平时低调，鼠标移上去才明显 */
+/* 主动关闭气泡的小 × ：放在气泡**内侧**右上角。
+   之前挂在气泡外面（top:-7px），窗口高度只按文字算，结果 × 有一半被窗口上边缘切掉了。 */
 #closeBubble {
   position: absolute;
-  top: -7px;
-  right: -6px;
+  top: 1px;
+  right: 2px;
   width: 18px;
   height: 18px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(120, 120, 120, 0.55);
+  background: rgba(120, 120, 120, 0.5);
   color: #fff;
   font-size: 12px;
   line-height: 16px;
   text-align: center;
   cursor: pointer;
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
 #closeBubble:hover {

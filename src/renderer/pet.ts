@@ -140,9 +140,34 @@ function publishAnchor(): void {
   });
 }
 
-/** 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。 */
-function playTransient(next: PetState, durationMs: number, bubbleText?: string): void {
+/** 演完临时姿势之后要回去的探头姿势（她原来就扒在边缘/底边的话）。 */
+let peekToResume: PetState | null = null;
+
+/**
+ * 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。
+ *
+ * keepPoseWhilePeeking=true 是"说话"用的：她正扒在边缘/底边时**保持那个姿势不动**，
+ * 只把话冒出来。用户把她拖到角落里本来就是为了让她别乱跑，说句话就站起来再随机走动会很打扰。
+ *
+ * 互动（摸头/投喂/夸夸…）还是照常换个表情演一下，但演完会回到原来的探头姿势（见 settleIdle），
+ * 同样不会站起来到处走。
+ */
+function playTransient(
+  next: PetState,
+  durationMs: number,
+  bubbleText?: string,
+  keepPoseWhilePeeking = false
+): void {
   cancelScheduledAction();
+  const peeking: PetState | null = PEEK_STATES.includes(state) ? state : null;
+
+  if (keepPoseWhilePeeking && peeking) {
+    peekToResume = null;
+    if (bubbleText) window.petAPI.showBubble(bubbleText);
+    return; // 姿势不动，也不排随机小动作：她就待在那儿
+  }
+
+  peekToResume = peeking;
   setState(next);
   if (bubbleText) window.petAPI.showBubble(bubbleText);
   window.setTimeout(() => {
@@ -152,10 +177,18 @@ function playTransient(next: PetState, durationMs: number, bubbleText?: string):
 }
 
 /**
- * 临时姿势演完之后回到"现在该有的待机状态"：
- * 用户在电脑前 → 待机 + 排下一个随机小动作；用户走开了 → 继续趴着/睡着（别站在那儿发呆）。
+ * 临时姿势演完之后回到"现在该有的状态"：
+ *   1) 原来正扒在边缘/底边 → 回到那个探头姿势（不排随机动作，所以她不会跑开）；
+ *   2) 用户在电脑前 → 待机 + 排下一个随机小动作；
+ *   3) 用户走开了 → 继续趴着/睡着。
  */
 function settleIdle(): void {
+  if (peekToResume) {
+    const peek = peekToResume;
+    peekToResume = null;
+    setState(peek);
+    return;
+  }
   const away = presence;
   if (away === 'active') {
     setState('idle');
@@ -226,6 +259,7 @@ window.addEventListener('mousemove', (e) => {
   if (!dragging && moved > DRAG_THRESHOLD_PX) {
     dragging = true;
     cancelScheduledAction();
+    peekToResume = null; // 被拎起来了，之前记的"演完回探头姿势"作废
     setState('dragging');
   }
   if (dragging) {
@@ -296,26 +330,29 @@ window.petAPI.onShown(() => {
   playTransient('greet', 1400);
 });
 
-// 发消息后、模型第一个 token 回来之前：切到思考状态，不设定时返回待机（等真正回复了再说）。
+// 发消息后、模型第一个 token 回来之前：切到思考状态。
+// 但她正扒在边缘/底边时不切——保持姿势（用户把她放那儿就是为了别打扰他）。
 window.petAPI.onThinkingStart(() => {
   cancelScheduledAction();
+  if (PEEK_STATES.includes(state)) return;
   setState('thinking');
 });
 
 // 模型回完了（或者聊天面板关闭时补播最新一句）：按情绪标签切表情 + 冒气泡。
 // 主动说话（深夜提醒）会额外带一个整张姿势 pose，比情绪标签更贴题，优先用它。
 // bubble=false（聊天面板开着的时候）就只换表情、不弹气泡，免得挡着面板。
+// 最后一个参数 true：她正扒在边缘/底边时保持不变，只冒气泡（不站起来、不乱走）。
 window.petAPI.onReply(({ text, emotion, pose, bubble }) => {
   const next =
     (pose && POSES.poseState[pose]) || (emotion && POSES.emotionState[emotion]) || 'replyHappy';
   const bubbleText = text.length > 60 ? `${text.slice(0, 57)}…` : text;
-  playTransient(next, 2400, bubble === false ? undefined : bubbleText || undefined);
+  playTransient(next, 2400, bubble === false ? undefined : bubbleText || undefined, true);
 });
 
 // 余额不足：主进程只在"够用 → 不足"那一刻发一次，这里直接播，不需要去重。
-// 播完 settleIdle() 会把人还在不在的状态接回去（走开了就继续睡）。
+// 同样保持探头姿势：这是系统提醒，不该让她换个地方站着。
 window.petAPI.onBalanceLow(({ text }) => {
-  playTransient('balanceLow', 5000, text);
+  playTransient('balanceLow', 5000, text, true);
 });
 
 // 用户走开/回来（主进程按系统空闲时间判断，见 src/main/presence.ts）。
@@ -343,6 +380,7 @@ window.petAPI.onPresence((next) => {
 let physicsRaf = 0;
 
 function startThrow(vx: number, vy: number): void {
+  peekToResume = null;
   setState('falling');
   let velX = vx * 0.35; // 屏幕像素速度直接用会太夸张，做个衰减
   let velY = vy * 0.35;
@@ -421,6 +459,7 @@ const PEEK_STATES: PetState[] = ['peekLeft', 'peekRight', 'peekHome'];
  */
 function enterPeek(side: 'left' | 'right' | 'bottom', permanent: boolean): void {
   cancelScheduledAction();
+  peekToResume = null; // 重新决定扒哪儿，之前记的恢复目标作废
   if (side === 'bottom') {
     posX = clampX(posX); // 水平位置保持拖到哪算哪，只夹一下别出界
     posY = GEOMETRY.peekWindowYBottom(workArea, spriteSize, POSES.peek);
@@ -467,6 +506,7 @@ function playIdlePoolAction(): void {
 function walkTo(targetX: number, onArrive: () => void): void {
   const facingLeft = targetX < posX;
   spriteEl.classList.toggle('face-left', facingLeft);
+  peekToResume = null;
   setState('walking');
   const speed = 60; // px/s
   let lastT = performance.now();
