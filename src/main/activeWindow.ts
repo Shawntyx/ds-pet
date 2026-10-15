@@ -8,14 +8,21 @@ export interface ActiveWindowInfo {
 // 只读前台窗口的程序名和标题（SPEC 5.3："只读取当前活动窗口的程序名和标题...不截图、不读窗口内容"）。
 // 用 PowerShell 调 user32.dll 的几个函数，不用装原生模块。参数用 -EncodedCommand（base64）传，
 // 不用在 JS 字符串里手动转义一大段带引号的 PowerShell 代码。
+//
+// 头两行是必须的：PowerShell 往管道里输出时默认用本地代码页，而 Node 的 exec 按 UTF-8 解码，
+// 中文标题会变成 "?"。把输出编码固定成 UTF-8 才对得上。
+// 下面 CharSet.Unicode 同样是必须的：不写的话 GetWindowText 会绑定到 ANSI 版（GetWindowTextA），
+// 在英文区域设置的 Windows 上（ANSI 代码页 1252）中文标题全变成 "?"——实测过一个中文标题只剩 "DS??"。
 const PS_SCRIPT = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 public class WhalePetWin32 {
-  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 }
 "@

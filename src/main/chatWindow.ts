@@ -9,6 +9,8 @@ import {
 import { petAnchorRect } from './petAnchor';
 import { placeSidePanel } from './popupPlacement';
 import { isWindowVisible, sendToWindow } from './safeSend';
+import { moveWindowTo } from './windowRect';
+import { startNewConversation } from './chatStore';
 import type { ChatMessageView } from '../shared/types';
 
 let chatWindow: BrowserWindow | null = null;
@@ -17,7 +19,11 @@ let petWindowRef: BrowserWindow | null = null;
 let lastReply: { text: string; emotion: string | null } | null = null;
 
 function historyView(): ChatMessageView[] {
-  return getHistory().map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+  return getHistory().map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+    conversation: m.conversation,
+  }));
 }
 
 function createChatWindow(): BrowserWindow {
@@ -52,7 +58,8 @@ function positionNearPet(win: BrowserWindow): void {
   const [w, h] = win.getSize();
   // 和右键菜单同一套摆位规则：人物贴右边缘时面板自动翻到左边。
   const { x, y } = placeSidePanel(anchor, workArea, { width: w, height: h }, 12);
-  win.setPosition(x, y);
+  // 走 moveWindowTo：它会带着当前尺寸一起 setBounds——只调 setPosition 会抛异常/改尺寸。
+  moveWindowTo(win, x, y);
 }
 
 /** 聊天面板现在是不是开着——开着的时候不再弹气泡（文本就在面板里，弹了是重复的）。 */
@@ -77,8 +84,16 @@ export function initChat(petWindow: BrowserWindow): void {
   ipcMain.removeHandler('chat:get-history');
   ipcMain.removeAllListeners('chat:send-message');
   ipcMain.removeAllListeners('chat:cancel');
+  ipcMain.removeAllListeners('chat:new-conversation');
 
   ipcMain.handle('chat:get-history', () => historyView());
+
+  // 用户点"新对话"：换一段干净的上下文（人设和长期记忆照旧注入，所以她还是记得你）。
+  ipcMain.on('chat:new-conversation', () => {
+    startNewConversation();
+    // 上一段对话的最后一句不该在新对话里再弹成气泡。
+    lastReply = null;
+  });
 
   ipcMain.on('chat:cancel', () => {
     cancelCurrentRequest();

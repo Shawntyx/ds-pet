@@ -9,12 +9,16 @@ import {
 import { petAnchorRect } from './petAnchor';
 import { placeBubble } from './popupPlacement';
 import { isWindowVisible, sendToWindow } from './safeSend';
+import { setWindowRect } from './windowRect';
 
-// 之前气泡是画在桌宠窗口自己里面的（#bubble 用 translateY(-100%) 往上顶），
-// 但桌宠窗口就只有角色那么大，上面完全没有多余空间——气泡其实从阶段 1 开始就一直被裁掉、
-// 根本没显示过，摸头/摸尾巴/投喂等等所有交互的气泡都是这样。这里改成单独一个悬浮小窗口，
-// 跟右键菜单/聊天窗口一样，不占用桌宠窗口本来的画面；而且会跟着桌宠挪动、贴边自适应，
-// 下面还带一行输入框，不用开完整聊天面板也能回她一句。
+// 气泡是独立的悬浮小窗口（不是画在桌宠窗口里的），跟着桌宠挪动、贴边自适应，
+// 下面带一行输入框，不用开完整聊天面板也能回她一句。
+//
+// 两个约定（用户明确要的）：
+//   * 默认显示 8 秒；但用户在这里回过话之后就一直留着，只能点右上角 × 关掉。
+//   * 如果这条气泡是"她主动说话"，用户在下面回复时算**开启一段新对话**
+//     （像常见 LLM 的"新对话"：上下文重置，但人设和长期记忆照旧）——
+//     具体在 bubble:send-message 里通过 newConversation 交给 chatSession。
 
 let bubbleWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
@@ -25,6 +29,12 @@ let pinned = false;
 let streaming = false;
 /** 已经挂过 'move' 监听的窗口，避免 initBubble 被反复调用时重复挂。 */
 let moveListenerWindow: BrowserWindow | null = null;
+
+/** 当前气泡上显示的是哪句"她主动说的话"（完整原文）；不是主动说话时为 null。
+ *  用户在气泡里回复时用它来判断"要不要开一段新对话"。 */
+let proactiveTextOnScreen: string | null = null;
+/** 刚说出口、还没弹出来的主动说话。showBubbleOverlay 会把它接到 proactiveTextOnScreen 上。 */
+let pendingProactiveText: string | null = null;
 
 const BUBBLE_WIDTH = 220;
 /** 气泡窗口高度是**跟着内容变的**（渲染进程量好高度报上来），下面两个是夹取范围。
@@ -59,6 +69,17 @@ export function clampBubbleHeight(height: number): number {
   return Math.min(BUBBLE_MAX_HEIGHT, Math.max(BUBBLE_MIN_HEIGHT, Math.round(height)));
 }
 
+/** 主动说话（健康提醒/哲学问题/窗口吐槽/余额提醒）在弹气泡之前先登记一下原文，
+ *  这样用户在气泡里回复时我们能知道"他回的是哪句主动说话"。 */
+export function noteProactiveLine(text: string): void {
+  pendingProactiveText = text || null;
+}
+
+/** 当前气泡是不是"她主动说的话"（要在气泡里开新对话时用）。 */
+export function bubbleShowsProactiveLine(): boolean {
+  return proactiveTextOnScreen !== null;
+}
+
 function createBubbleWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: BUBBLE_WIDTH,
@@ -68,7 +89,8 @@ function createBubbleWindow(): BrowserWindow {
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    // 高度要按内容动态调整，所以不能锁死 resizable；窗口没有边框，用户也拖不动它。
+    // 高度要按内容调整，所以不能锁死 resizable；窗口没有边框，用户也拖不动它。
+    // （尺寸稳定靠 windowRect.ts：每次移动都把尺寸一起 setBounds 回去。）
     resizable: true,
     hasShadow: false,
     // 要能点进输入框打字，所以不能像菜单/桌宠本体那样整体 focusable:false；
@@ -113,24 +135,28 @@ function computeBubblePosition(): { x: number; y: number } {
   return placeBubble(anchor, workArea, { width: BUBBLE_WIDTH, height: contentHeight }, GAP_PX);
 }
 
-/** 摆位（尺寸 + 位置都按当前内容高度算）。只在"打开/内容变化"时调用。 */
+/**
+ * 摆位：位置跟着她、**尺寸每次都按内容高度写死**。
+ *
+ * 为什么必须带尺寸（而不是只调 setPosition）：这台 Windows 上对透明窗口 setPosition
+ * 会把窗口尺寸一起改掉（被移动的轴会变长），气泡就会越跟越宽——输入框是 width:100%，
+ * 表现出来就是"回复框不断拉长"。每帧把尺寸设回去就锁住了，见 windowRect.ts。
+ */
 function applyBubbleBounds(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
   const { x, y } = computeBubblePosition();
-  bubbleWindow.setBounds({ x, y, width: BUBBLE_WIDTH, height: contentHeight });
+  setWindowRect(bubbleWindow, { x, y, width: BUBBLE_WIDTH, height: contentHeight });
 }
 
-/** 她在移动：**只挪位置，绝不动尺寸**——尺寸是内容决定的，跟着移动变会看起来乱跳。 */
 function repositionIfVisible(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleWindow.isVisible()) return;
   if (!petWindowRef) return;
-  const { x, y } = computeBubblePosition();
-  bubbleWindow.setPosition(x, y);
+  applyBubbleBounds();
 }
 
 export function initBubble(petWindow: BrowserWindow): void {
   petWindowRef = petWindow;
-  // 桌宠走动/被拖/弹跳时跟着挪（只在气泡正显示的时候才会真的动，见 repositionIfVisible）。
+  // 桌宠走动/被拖/弹跳时跟着挪（只在气泡正显示的时候才会真的动）。
   if (moveListenerWindow !== petWindow) {
     petWindow.on('move', repositionIfVisible);
     moveListenerWindow = petWindow;
@@ -156,31 +182,40 @@ export function initBubble(petWindow: BrowserWindow): void {
     pinned = true;
     clearHideTimer();
 
+    // 她刚才在这条气泡里主动说了话 → 用户这句算开启一段新对话，
+    // 那句主动说话作为新对话的开头（它没进过聊天记录，见 proactive.ts）。
+    const seedText = proactiveTextOnScreen;
+    proactiveTextOnScreen = null;
+
     const relayDelta = createTagStrippingRelay((clean) =>
       sendToWindow(bubbleWindow, 'bubble:delta', clean)
     );
     streaming = true;
-    sendUserMessage(text.trim(), {
-      onThinkingStart: () => sendToWindow(petWindowRef, 'pet:thinking-start'),
-      onDelta: (delta) => relayDelta(delta),
-      onDone: (payload) => {
-        streaming = false;
-        sendToWindow(bubbleWindow, 'bubble:done');
-        // 回复本来就在气泡里流式显示出来了，不用再弹一次气泡——只让桌宠换个表情。
-        sendToWindow(petWindowRef, 'pet:reply', { ...payload, bubble: false });
-      },
-      onStopped: (payload) => {
-        streaming = false;
-        sendToWindow(bubbleWindow, 'bubble:stopped', payload);
-        if (payload) {
+    sendUserMessage(
+      text.trim(),
+      {
+        onThinkingStart: () => sendToWindow(petWindowRef, 'pet:thinking-start'),
+        onDelta: (delta) => relayDelta(delta),
+        onDone: (payload) => {
+          streaming = false;
+          sendToWindow(bubbleWindow, 'bubble:done');
+          // 回复本来就在气泡里流式显示出来了，不用再弹一次气泡——只让桌宠换个表情。
           sendToWindow(petWindowRef, 'pet:reply', { ...payload, bubble: false });
-        }
+        },
+        onStopped: (payload) => {
+          streaming = false;
+          sendToWindow(bubbleWindow, 'bubble:stopped', payload);
+          if (payload) {
+            sendToWindow(petWindowRef, 'pet:reply', { ...payload, bubble: false });
+          }
+        },
+        onError: (message) => {
+          streaming = false;
+          sendToWindow(bubbleWindow, 'bubble:error', message);
+        },
       },
-      onError: (message) => {
-        streaming = false;
-        sendToWindow(bubbleWindow, 'bubble:error', message);
-      },
-    });
+      seedText ? { newConversation: { seedText } } : undefined
+    );
   });
 
   ipcMain.on('bubble:open-chat', () => {
@@ -196,6 +231,7 @@ export function initBubble(petWindow: BrowserWindow): void {
     if (streaming && isChatBusy()) cancelCurrentRequest();
     streaming = false;
     pinned = false;
+    proactiveTextOnScreen = null;
     clearHideTimer();
     bubbleWindow?.hide();
   });
@@ -210,6 +246,10 @@ export function showBubbleOverlay(text: string, durationMs = DEFAULT_BUBBLE_MS):
 
   // 新气泡进来：先回到"会自动收起"的状态（除非用户马上又回了一句）。
   pinned = false;
+  // 这条气泡是不是"她主动说的话"由 noteProactiveLine 提前登记；用掉就清掉，
+  // 免得后面一条聊天回复/互动气泡被误判成主动说话。
+  proactiveTextOnScreen = pendingProactiveText;
+  pendingProactiveText = null;
 
   const reveal = (): void => {
     win.webContents.send('bubble:set-text', text);

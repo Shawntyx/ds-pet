@@ -8,6 +8,13 @@ export interface ProactiveLine {
   pose?: string;
 }
 
+// 深夜提醒统一用 night 姿势（揉眼睛、头顶月亮），比只换个表情更贴题。
+const LATE_NIGHT_LINES: ProactiveLine[] = [
+  { text: '都几点了还不睡？明天起不来可别怪我没提醒你哦。', emotion: 'angry', pose: 'night' },
+  { text: '夜深了，早点休息吧，我会在这里守着的。', emotion: 'love', pose: 'night' },
+  { text: '再不睡的话，明天一整天都要没精神咯，早点睡嘛。', emotion: 'shy', pose: 'night' },
+];
+
 const SITTING_LINES: ProactiveLine[] = [
   { text: '都坐一个小时了，起来走两步啦，再坐下去真的要长蘑菇了。', emotion: 'angry' },
   { text: '喂，动一动嘛，再不起来我要开始碎碎念了哦。', emotion: 'angry' },
@@ -18,13 +25,6 @@ const WATER_LINES: ProactiveLine[] = [
   { text: '记得喝水哦，别总是忘了~', emotion: 'happy' },
   { text: '水杯是不是又忘在旁边没碰过？快喝一口啦。', emotion: 'angry' },
   { text: '补水时间到，喝口水再继续吧。', emotion: 'happy' },
-];
-
-// 深夜提醒统一用 night 姿势（揉眼睛、头顶月亮），比只换个表情更贴题。
-const LATE_NIGHT_LINES: ProactiveLine[] = [
-  { text: '都几点了还不睡？明天起不来可别怪我没提醒你哦。', emotion: 'angry', pose: 'night' },
-  { text: '夜深了，早点休息吧，我会在这里守着的。', emotion: 'love', pose: 'night' },
-  { text: '再不睡的话，明天一整天都要没精神咯，早点睡嘛。', emotion: 'shy', pose: 'night' },
 ];
 
 const PHILOSOPHICAL_QUESTIONS: string[] = [
@@ -40,16 +40,29 @@ const PHILOSOPHICAL_QUESTIONS: string[] = [
   '如果梦里的你比现实里的你更快乐，哪一个才是更真实的人生？',
 ];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+/** 每个池子上一次抽到的是第几条：用来避免连续两次说同一句话
+ *  （用户实测碰到过一模一样的哲学问题连说两遍）。 */
+const lastIndexByPool = new Map<string, number>();
+
+/**
+ * 从池子里抽一条，保证不和"上一次从同一个池子抽到的"重复。
+ * 撞上就顺延一位，这样既均匀又不会连着重复；池子只有一条时只能重复。
+ */
+function pickRandom<T>(poolName: string, arr: T[]): T {
+  if (arr.length <= 1) return arr[0];
+  const last = lastIndexByPool.get(poolName);
+  let index = Math.floor(Math.random() * arr.length);
+  if (index === last) index = (index + 1) % arr.length;
+  lastIndexByPool.set(poolName, index);
+  return arr[index];
 }
 
 export function pickHealthLine(kind: 'sitting' | 'water' | 'lateNight'): ProactiveLine {
-  if (kind === 'sitting') return pickRandom(SITTING_LINES);
-  if (kind === 'lateNight') return pickRandom(LATE_NIGHT_LINES);
-  return pickRandom(WATER_LINES);
+  if (kind === 'sitting') return pickRandom('health-sitting', SITTING_LINES);
+  if (kind === 'lateNight') return pickRandom('health-lateNight', LATE_NIGHT_LINES);
+  return pickRandom('health-water', WATER_LINES);
 }
 
 export function pickPhilosophicalQuestion(): string {
-  return pickRandom(PHILOSOPHICAL_QUESTIONS);
+  return pickRandom('question', PHILOSOPHICAL_QUESTIONS);
 }

@@ -40,10 +40,10 @@ test('聊天记录：写入落盘、"重启"后读回来', () => {
 
   // 模拟重启：重新初始化，应该从磁盘读回来
   chatStore.initChatStore();
-  assert.equal(chatStore.getMessages().length, 10);
-  assert.equal(chatStore.getMessages()[9].content, '第 5 句回答');
+  assert.equal(chatStore.getStoredMessages().length, 10);
+  assert.equal(chatStore.getStoredMessages()[9].content, '第 5 句回答');
 
-  const recent = chatStore.recentRounds(chatStore.getMessages(), 2);
+  const recent = chatStore.recentRounds(chatStore.getStoredMessages(), 2);
   assert.equal(recent.length, 4);
   assert.equal(recent[0].role, 'user');
 });
@@ -52,7 +52,7 @@ test('请求失败撤回的用户消息不会留在文件里', () => {
   chatStore.appendMessage({ role: 'user', content: '这句会失败' });
   chatStore.dropLastMessage();
   chatStore.flushChatStore();
-  assert.equal(chatStore.getMessages().length, 10);
+  assert.equal(chatStore.getStoredMessages().length, 10);
   assert.equal(JSON.parse(fs.readFileSync(chatStore.historyFilePath(), 'utf-8')).messages.length, 10);
 });
 

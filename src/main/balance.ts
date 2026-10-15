@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { loadSettings } from './config';
+import { noteProactiveLine } from './bubbleWindow';
 import { loadApiKey, apiKeyStatus } from './secrets';
 import type { BalanceView } from '../shared/types';
 
@@ -121,14 +122,15 @@ async function queryBalance(): Promise<QueryResult> {
   }
 }
 
-/** 余额不足时给桌宠发一条提醒，让渲染进程切 balance-low 姿势 + 冒气泡。 */
+/** 余额不足时给桌宠发一条提醒，让渲染进程切 balance-low 姿势 + 冒气泡。
+ *  也当成"主动说话"登记一下：用户在气泡里回复时算开启新对话（和别的主动说话一致）。 */
 function notifyPetIfLow(): void {
   const isLow = snapshot.ok && snapshot.low;
   if (isLow && !lastReportedLow && petWindowRef && !petWindowRef.isDestroyed()) {
     const amount = `${currencySymbol(snapshot.currency)}${(snapshot.total ?? 0).toFixed(2)}`;
-    petWindowRef.webContents.send('pet:balance-low', {
-      text: `余额只剩 ${amount} 了，记得充值哦，不然我就没法陪你聊天啦。`,
-    });
+    const text = `余额只剩 ${amount} 了，记得充值哦，不然我就没法陪你聊天啦。`;
+    noteProactiveLine(text);
+    petWindowRef.webContents.send('pet:balance-low', { text });
   }
   // 只有"成功查到余额"时才更新这个标记：网络抖动导致的查询失败不该重新武装提醒。
   if (snapshot.ok) lastReportedLow = isLow;

@@ -7,6 +7,7 @@ import { showSettingsWindow } from './settingsWindow';
 import { petAnchorRect } from './petAnchor';
 import { placeSidePanel } from './popupPlacement';
 import { sendToWindow } from './safeSend';
+import { setWindowRect } from './windowRect';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
@@ -50,7 +51,8 @@ function positionMenu(): void {
   const anchor = petAnchorRect();
   const { workArea } = screen.getDisplayMatching(anchor);
   const { x, y } = placeSidePanel(anchor, workArea, { width: MENU_WIDTH, height: MENU_HEIGHT });
-  menuWindow.setPosition(Math.round(x), Math.round(y));
+  // 尺寸一起写死：只调 setPosition 会让透明窗口在移动时被改尺寸（见 windowRect.ts）。
+  setWindowRect(menuWindow, { x, y, width: MENU_WIDTH, height: MENU_HEIGHT });
 }
 
 /** 菜单开着的时候她走开了：菜单跟着挪，不然就会孤零零留在原地指向空气。 */

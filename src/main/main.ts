@@ -18,6 +18,17 @@ import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
 
+// 主进程出现未捕获异常 / 未处理的 Promise 拒绝时，Electron 默认会弹一个
+// "A JavaScript error occurred in the main process" 对话框：用户只看到一个打断他的弹窗，
+// 而我们拿不到堆栈（实测踩过一次，只能靠临时加日志才查到原因）。
+// 桌面宠物是常驻程序，静默记日志比弹窗更合适，所以这里接管掉，把堆栈打出来。
+process.on('uncaughtException', (err) => {
+  console.error('[whale-pet] 未捕获的异常:', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[whale-pet] 未处理的 Promise 拒绝:', reason);
+});
+
 function createWindow(): BrowserWindow {
   const settings = loadSettings();
   const size = settings.spriteSize;

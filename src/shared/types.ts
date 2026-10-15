@@ -178,6 +178,8 @@ export interface MenuBridge {
 export interface ChatMessageView {
   role: 'user' | 'assistant';
   content: string;
+  /** 属于哪一段对话：面板用它来画"新的对话"分隔线（老数据没有这个字段） */
+  conversation?: number;
 }
 
 /** chatPreload 暴露给聊天面板渲染进程的 API 形状。 */
@@ -186,6 +188,8 @@ export interface ChatBridge {
   sendMessage(text: string): void;
   /** 用户按"停止"：中断正在生成的回复（已经吐出来的部分会留在记录里） */
   cancel(): void;
+  /** 用户点"新对话"：按常见 LLM 的习惯开一段干净上下文（人设和长期记忆照旧） */
+  newConversation(): void;
   onDelta(callback: (delta: string) => void): void;
   onDone(callback: () => void): void;
   /** 用户主动停止；payload 为 null 表示一个字都没收到，那条提问也被撤回了 */

@@ -1,7 +1,8 @@
 import { BrowserWindow, powerMonitor } from 'electron';
 import { loadSettings } from './config';
-import { generateProactiveLine, isChatBusy, pushAssistantLine } from './chatSession';
+import { generateProactiveLine, isChatBusy } from './chatSession';
 import { isChatWindowOpen } from './chatWindow';
+import { noteProactiveLine } from './bubbleWindow';
 import { getActiveWindowInfo } from './activeWindow';
 import { isTitleSensitive, parseFilterWords } from './privacyFilter';
 import { pickHealthLine, pickPhilosophicalQuestion } from './proactiveLines';
@@ -25,11 +26,17 @@ function rollNextInterval(avgMinutes: number): number {
   return base - jitter + Math.random() * jitter * 2;
 }
 
-/** 把一句话送到桌宠那边：复用阶段 2 已有的"回复完播情绪表情 + 冒气泡"那条路径，
- * 主动说话和真的聊天回复在桌宠身上看起来是一样的，用户分不出也不需要分。
+/**
+ * 把一句话送到桌宠那边：复用"回复完播情绪表情 + 冒气泡"那条路径。
+ *
+ * 主动说话**不进聊天记录**（用户明确要求的：否则她自己的碎碎念会混进对话，你在气泡下回复时上下文就乱了）。
+ * 取而代之：先把这句话登记成"主动说话"，用户在气泡里回她时，那句回复会开启一段新对话、
+ * 并以这句话开头（见 bubbleWindow.ts 的 noteProactiveLine）。
  * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。
- * 聊天面板开着时不弹气泡——那句话说出口的同时它已经在面板里了，弹出来只会挡视线。 */
+ * 聊天面板开着时不弹气泡——那句话说出口的同时它已经在面板里了，弹出来只会挡视线。
+ */
 function speak(text: string, emotion: string | null, pose: string | null = null): void {
+  noteProactiveLine(text);
   sendToWindow(petWindowRef, 'pet:reply', {
     text,
     emotion,
@@ -50,7 +57,6 @@ async function fireHealth(): Promise<void> {
       : 'water';
 
   const line = pickHealthLine(kind);
-  pushAssistantLine(line.text);
   speak(line.text, line.emotion, line.pose ?? null);
 }
 
@@ -70,7 +76,6 @@ async function fireWindowRoast(settings: PetSettings): Promise<void> {
 
 async function fireQuestion(): Promise<void> {
   const question = pickPhilosophicalQuestion();
-  pushAssistantLine(question);
   speak(question, null);
 }
 
@@ -109,7 +114,11 @@ function tick(): void {
 
   lastFireAt = Date.now();
   nextIntervalMs = rollNextInterval(settings.proactive.avgIntervalMinutes);
-  void fireOne(settings);
+  // fireOne 是 async 的：不加 catch，里面任何一次抛错都会变成"未处理的 Promise 拒绝"，
+  // 主进程默认会弹 "A JavaScript error occurred in the main process" 对话框（还很吵）。
+  void fireOne(settings).catch((err) => {
+    console.error('[whale-pet] 主动说话执行失败:', err && err.stack ? err.stack : err);
+  });
 }
 
 export function initProactive(petWindow: BrowserWindow): void {

@@ -4,9 +4,10 @@
 
 interface Window {
   chatAPI: {
-    getHistory(): Promise<{ role: 'user' | 'assistant'; content: string }[]>;
+    getHistory(): Promise<{ role: 'user' | 'assistant'; content: string; conversation?: number }[]>;
     sendMessage(text: string): void;
     cancel(): void;
+    newConversation(): void;
     onDelta(callback: (delta: string) => void): void;
     onDone(callback: () => void): void;
     onStopped(callback: (payload: { text: string } | null) => void): void;
@@ -20,14 +21,34 @@ interface Window {
   const input = document.getElementById('input') as HTMLTextAreaElement;
   const sendBtn = document.getElementById('send') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop') as HTMLButtonElement;
+  const newConversationBtn = document.getElementById('newConversation') as HTMLButtonElement;
 
   let pendingBubble: HTMLDivElement | null = null;
   let sending = false;
   /** 最近一条用户消息的元素：发送失败/被停止时要给它打标记（主进程那边记录已经撤回了）。 */
   let lastUserEl: HTMLDivElement | null = null;
+  /** 已经渲染到第几段对话，用来判断要不要插"新的对话"分隔线。 */
+  let renderedConversation: number | null = null;
 
   function scrollToBottom(): void {
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addDivider(label: string): void {
+    const el = document.createElement('div');
+    el.className = 'divider';
+    el.textContent = label;
+    messagesEl.appendChild(el);
+    scrollToBottom();
+  }
+
+  /** conversation 变化时自动插一条分隔线（"她主动说话 → 你回复"就是一段新对话）。 */
+  function ensureConversationDivider(conversation?: number): void {
+    if (conversation === undefined) return;
+    if (renderedConversation !== null && conversation !== renderedConversation) {
+      addDivider('新的对话');
+    }
+    renderedConversation = conversation;
   }
 
   function addMessage(role: 'user' | 'assistant' | 'error', text: string): HTMLDivElement {
@@ -77,6 +98,16 @@ interface Window {
     stopBtn.disabled = true;
     stopBtn.textContent = '停止中…';
     window.chatAPI.cancel();
+  });
+
+  // 新对话：像常见 LLM 那样清空上下文（人设和长期记忆还在）。
+  // 主进程负责换对话编号，这里只把分隔线画出来，不用重新加载整个历史。
+  newConversationBtn.addEventListener('click', () => {
+    if (sending) return;
+    window.chatAPI.newConversation();
+    addDivider('新的对话（她只记得人设和长期记忆）');
+    lastUserEl = null;
+    input.focus();
   });
 
   window.chatAPI.onDelta((delta) => {
@@ -129,6 +160,7 @@ interface Window {
   async function init(): Promise<void> {
     const history = await window.chatAPI.getHistory();
     for (const m of history) {
+      ensureConversationDivider(m.conversation);
       addMessage(m.role, m.content);
     }
     input.focus();

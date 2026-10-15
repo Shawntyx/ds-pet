@@ -7,8 +7,11 @@ import {
   appendMessage,
   clearMessages,
   dropLastMessage,
-  getMessages,
+  getConversationMessages,
+  getStoredMessages,
   recentRounds,
+  startNewConversation,
+  type StoredMessage,
 } from './chatStore';
 import { memorySection, noteCompletedExchange } from './memory';
 
@@ -32,20 +35,13 @@ function tagAtStart(text: string): { tag: string; length: number } | null {
   return { tag: match[1].toLowerCase(), length: match[0].length };
 }
 
-/** 会话历史从阶段 4 起落在 userData/chat/history.json 里（见 chatStore.ts），重启能接着聊。 */
-export function getHistory(): ChatMessage[] {
-  return getMessages();
+/** 面板要看的全部历史（带对话编号，用来画"新的对话"分隔线）。 */
+export function getHistory(): StoredMessage[] {
+  return getStoredMessages();
 }
 
 export function clearHistory(): void {
   clearMessages();
-}
-
-/** 主动说话里不调模型的固定台词（健康提醒/哲学问题）也记进历史，
- * 这样用户在气泡下面的输入框回一句时，模型能看到自己刚才说了什么。 */
-export function pushAssistantLine(text: string): void {
-  if (!text) return;
-  appendMessage({ role: 'assistant', content: text });
 }
 
 function buildSystemPrompt(): string {
@@ -56,12 +52,13 @@ function buildSystemPrompt(): string {
   return memory ? `${persona}\n\n${memory}` : persona;
 }
 
-/** 发给模型的上下文：人设 + 最近 N 轮（N 在设置里，避免上下文过长，SPEC §5.4）。 */
+/** 发给模型的上下文：人设 + 长期记忆 + **当前这段对话**最近的 N 轮。
+ *  （更早的对话留在文件里给用户翻，不进上下文；人设和记忆照旧，所以她还是记得你。） */
 function buildContextMessages(): ChatMessage[] {
   const settings = loadSettings();
   return [
     { role: 'system', content: buildSystemPrompt() },
-    ...recentRounds(getMessages(), settings.chatHistoryRounds),
+    ...recentRounds(getConversationMessages(), settings.chatHistoryRounds),
   ];
 }
 
@@ -150,7 +147,20 @@ function resolveApiKey(): { apiKey: string } | { error: string } {
   return { apiKey };
 }
 
-export async function sendUserMessage(userText: string, handlers: SendHandlers): Promise<void> {
+export interface SendOptions {
+  /**
+   * 开一段新对话再发这句（用户在气泡里回复她的主动说话时用）。
+   * seedText 是"她刚才主动说的那句话"，会作为新对话的开头记下来——
+   * 这样这段对话单独看是完整的，而它又不会混进之前那段聊天里。
+   */
+  newConversation?: { seedText?: string };
+}
+
+export async function sendUserMessage(
+  userText: string,
+  handlers: SendHandlers,
+  options?: SendOptions
+): Promise<void> {
   if (inflight) {
     handlers.onError('她还在回上一句，稍等一下再发嘛～');
     return;
@@ -172,6 +182,11 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
   const entry = { controller: new AbortController(), cancelled: false, received: '' };
   inflight = entry;
 
+  if (options?.newConversation) {
+    startNewConversation();
+    const seed = options.newConversation.seedText?.trim();
+    if (seed) appendMessage({ role: 'assistant', content: seed });
+  }
   appendMessage({ role: 'user', content: userText });
   const messages: ChatMessage[] = buildContextMessages();
 
@@ -217,8 +232,11 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
 }
 
 /**
- * 阶段 3 窗口标题吐槽用：不走正常的"用户发了一句话"流程（不往历史里塞假的用户发言），
- * 只拿 instruction 当这次请求单独的提示语，让模型基于当前上下文说一句主动搭话的话。
+ * 阶段 3 窗口标题吐槽用：不走正常的"用户发了一句话"流程，只拿 instruction 当这次请求
+ * 单独的提示语，让模型基于当前上下文说一句主动搭话的话。
+ *
+ * 注意：主动说话**不进聊天记录**（用户明确要求）——它只是一次性生成 + 冒个气泡。
+ * 用户在气泡里回她时，那句话会作为"新对话的开头"由 bubbleWindow 传进来。
  * 失败/没配 Key 就返回 null，调用方该跳过就跳过，不是什么严重错误。
  */
 export async function generateProactiveLine(
@@ -251,12 +269,7 @@ export async function generateProactiveLine(
           onDelta: () => {},
           onDone: (fullText) => {
             const { text, emotion } = extractEmotion(fullText);
-            if (!text) {
-              resolve(null);
-              return;
-            }
-            appendMessage({ role: 'assistant', content: text });
-            resolve({ text, emotion });
+            resolve(text ? { text, emotion } : null);
           },
           onError: () => resolve(null),
         },

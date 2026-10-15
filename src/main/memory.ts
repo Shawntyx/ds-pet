@@ -4,7 +4,7 @@ import * as path from 'path';
 import { createOpenAICompatibleProvider } from '../core/providers/openaiCompatible';
 import { loadSettings } from './config';
 import { loadApiKey } from './secrets';
-import { getMessages, recentRounds } from './chatStore';
+import { getConversationMessages, recentRounds } from './chatStore';
 import type { ChatMessage } from '../core/providers/types';
 
 // 长期记忆（SPEC §5.4 下半部分）：定期从对话里提取"值得长期记住的事实"，存本地，
@@ -327,7 +327,8 @@ async function extractNow(): Promise<number> {
   if (!apiKey) return 0;
 
   const settings = loadSettings();
-  const transcript = buildTranscript(recentRounds(getMessages(), EXTRACT_CONTEXT_ROUNDS));
+  // 只看当前这段对话：更早的对话已经沉淀成记忆了，不用再反复读一遍。
+  const transcript = buildTranscript(recentRounds(getConversationMessages(), EXTRACT_CONTEXT_ROUNDS));
   if (transcript.length < 10) return 0; // 只有一两句寒暄，没什么可记的
 
   const provider = createOpenAICompatibleProvider({

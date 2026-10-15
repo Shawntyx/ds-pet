@@ -11,6 +11,58 @@ html, body {
   box-sizing: border-box;
 }
 
+/* 顶部一行：说明 + "新对话"按钮 */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+}
+
+#headerHint {
+  flex: 1;
+  font-size: 11px;
+  color: #999;
+  line-height: 1.3;
+}
+
+#newConversation {
+  flex: none;
+  border: 1px solid rgba(242, 139, 171, 0.5);
+  background: #fff;
+  color: #c0607f;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#newConversation:hover {
+  background: #fdecef;
+}
+
+/* 分隔线：标出"这里开始是一段新对话" */
+.divider {
+  align-self: center;
+  font-size: 11px;
+  color: #b9a7b0;
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
 #messages {
   flex: 1;
   overflow-y: auto;

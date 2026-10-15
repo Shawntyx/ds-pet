@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 import { loadSettings } from './config';
 import { showBubbleOverlay } from './bubbleWindow';
 import { setPetAnchor } from './petAnchor';
+import { setWindowRect } from './windowRect';
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // 窗口在 'activate' 时可能被重建，这里先清掉旧监听，避免 ipcMain.handle 重复注册报错。
@@ -20,7 +21,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.on('pet:set-window-position', (_event, x: number, y: number) => {
-    mainWindow.setPosition(x, y, false);
+    // 必须"位置 + 尺寸"一起设：单独 setPosition 在这台 Windows 上会因为移动而改变窗口尺寸
+    // （她走动时窗口越走越大，点击判定和气泡摆位都会跟着偏）。见 windowRect.ts 的说明。
+    const size = loadSettings().spriteSize;
+    setWindowRect(mainWindow, { x, y, width: size, height: size });
   });
 
   ipcMain.on('pet:show-bubble', (_event, text: string) => {

@@ -11,6 +11,9 @@ const bridge: ChatBridge = {
   cancel(): void {
     ipcRenderer.send('chat:cancel');
   },
+  newConversation(): void {
+    ipcRenderer.send('chat:new-conversation');
+  },
   onDelta(callback: (delta: string) => void): void {
     ipcRenderer.on('chat:delta', (_event, delta: string) => callback(delta));
   },
