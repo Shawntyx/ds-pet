@@ -15,6 +15,9 @@ import { sendToWindow } from './safeSend';
 import { flushChatStore, initChatStore } from './chatStore';
 import { flushMemoryStore, initMemoryStore } from './memory';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
+import { logFilePath, logLine, setupLogging } from './appLog';
+import { whaleAssetsDir } from './paths';
+import { apiKeyStatus } from './secrets';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -27,13 +30,8 @@ app.setName('whale-pet');
 // 主进程出现未捕获异常 / 未处理的 Promise 拒绝时，Electron 默认会弹一个
 // "A JavaScript error occurred in the main process" 对话框：用户只看到一个打断他的弹窗，
 // 而我们拿不到堆栈（实测踩过一次，只能靠临时加日志才查到原因）。
-// 桌面宠物是常驻程序，静默记日志比弹窗更合适，所以这里接管掉，把堆栈打出来。
-process.on('uncaughtException', (err) => {
-  console.error('[whale-pet] 未捕获的异常:', err && err.stack ? err.stack : err);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[whale-pet] 未处理的 Promise 拒绝:', reason);
-});
+// 桌面宠物是常驻程序，静默记日志比弹窗更合适：控制台一份，文件一份（打包版没有终端，只能看文件）。
+setupLogging();
 
 function createWindow(): BrowserWindow {
   const settings = loadSettings();
@@ -111,6 +109,11 @@ function bootstrap(): void {
   // 打一行数据目录：排查"Key/设置/记录去哪了"这类问题时一眼就能看到，
   // 也能确认打包版和开发版用的是同一份数据（见上面 app.setName 的说明）。
   console.log('[whale-pet] userData:', app.getPath('userData'));
+  // 打包版没有终端，这些信息一律同时写进日志文件，出问题时看 %APPDATA%\whale-pet\logs\app.log
+  logLine(
+    `启动 v${app.getVersion()} | 打包版=${app.isPackaged} | userData=${app.getPath('userData')} | ` +
+      `素材目录=${whaleAssetsDir()} | API Key 状态=${apiKeyStatus().state}`
+  );
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
 
@@ -153,6 +156,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  logLine(`退出（日志文件：${logFilePath() ?? '不可用'}）`);
   unregisterAllShortcuts();
   stopProactive();
   stopPresence();

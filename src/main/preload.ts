@@ -8,6 +8,38 @@ import type { PetBridge, PetMenuAction, PresenceState } from '../shared/types';
 // 打包后素材在 resources/whale-assets 里（见 paths.ts）。
 const ASSETS_ROOT = path.join(whaleAssetsDir(), 'assets', 'generated');
 
+// 渲染进程的报错在打包版里是"看不见"的（GUI 进程没有终端，用户也不会开 DevTools），
+// 出问题时只能靠猜。这里挂钩子，把报错和一条启动诊断报给主进程写进日志文件。
+function reportToMain(channel: string, payload: Record<string, unknown>): void {
+  try {
+    ipcRenderer.send(channel, payload);
+  } catch {
+    /* 忽略 */
+  }
+}
+
+window.addEventListener('error', (event) => {
+  reportToMain('app:renderer-error', {
+    source: 'window.error',
+    message: event.message,
+    stack: event.error && event.error.stack ? String(event.error.stack) : `${event.filename}:${event.lineno}`,
+  });
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  reportToMain('app:renderer-error', {
+    source: 'unhandledrejection',
+    message: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+// 素材路径是打包后最容易出错的地方（asar 里 vs asar 外），启动时报一行，排查时一眼能看到。
+reportToMain('app:renderer-log', {
+  source: 'preload',
+  message: `素材目录=${ASSETS_ROOT} | resourcesPath=${process.resourcesPath}`,
+});
+
 const bridge: PetBridge = {
   resolveAsset(filename: string): string {
     return pathToFileURL(path.join(ASSETS_ROOT, filename)).toString();

@@ -15,6 +15,7 @@ import {
 } from './chatStore';
 import { memorySection, noteCompletedExchange } from './memory';
 import { balanceContextForChat } from './balance';
+import { logLine } from './appLog';
 
 export const EMOTION_TAGS = ['happy', 'shy', 'sad', 'angry', 'surprised', 'love'] as const;
 export type Emotion = (typeof EMOTION_TAGS)[number];
@@ -184,6 +185,7 @@ export async function sendUserMessage(
   }
   const resolved = resolveApiKey();
   if ('error' in resolved) {
+    logLine(`聊天发不出去（没进请求）: ${resolved.error}`);
     handlers.onError(resolved.error);
     return;
   }
@@ -251,6 +253,8 @@ export async function sendUserMessage(
           }
           // 真的失败了才撤回提问。
           dropLastMessage();
+          // 也记进日志文件：聊天"完全没反应"时，看日志就知道是网络/Key 的问题还是根本没发出去。
+          logLine(`聊天请求失败: ${error.message}`);
           handlers.onError(error.message);
         },
       },

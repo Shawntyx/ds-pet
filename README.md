@@ -65,6 +65,28 @@ node scripts/build-installer.js      # 等价于 npm run dist:win
 
 装完/跑起来之后，数据仍在 `%APPDATA%\whale-pet`（和开发版**同一份**），所以 API Key、设置、聊天记录、长期记忆都不会丢。
 
+### 怎么退出
+
+**右键托盘图标 → 退出**。（托盘是独立窗口，托盘菜单永远能用——即使桌宠本体被别的东西挡住、或者点了没反应。）
+
+托盘图标也被挡住了的话：
+
+```powershell
+taskkill /IM 鲸鱼娘桌宠.exe /F        # 开发版是 taskkill /IM electron.exe /F
+```
+
+任务管理器里结束 `鲸鱼娘桌宠`（开发版是 `electron`）进程也一样。
+
+### 出问题看日志
+
+打包版是 GUI 进程，**没有终端**，所以关键信息都会写进文件：
+
+```
+%APPDATA%\whale-pet\logs\app.log
+```
+
+里面有：启动信息（版本 / 是否打包版 / 数据目录 / 素材目录 / **API Key 状态**）、主进程未捕获异常、**渲染进程的报错**（preload 里挂了钩子）、聊天请求失败的原因。文件不会无限长大（超过 200KB 只留最后 100KB）。
+
 **两个坑（脚本已经处理，记在这里免得以后重新踩）：**
 
 - **素材路径要分开发/打包两种环境**：打包后代码在 `app.asar` 里，而素材和人设是通过 `extraResources` 放在 asar **外面**的 `resources/whale-assets`、`resources/persona`（见 `src/main/paths.ts`）。素材连同它自己的 `LICENSE` 一起分发，满足授权要求。
