@@ -37,6 +37,8 @@ interface SettingsDataView {
   apiKeyState: string;
   apiKeyHint: string;
   userDataPath: string;
+  /** 应用版本号（设置页显示，方便确认装的是哪一版） */
+  version: string;
   activePersona: string;
   personas: string[];
   afkAfterMinutes: number;
@@ -62,6 +64,7 @@ interface Window {
       data: Partial<SettingsDataView> & { apiKey?: string }
     ): Promise<{ ok: boolean; error?: string }>;
     openPersonaFile(): void;
+    openDataDir(): void;
     refreshBalance(): Promise<BalanceViewView>;
     onBalanceChanged(callback: (data: SettingsDataView) => void): void;
     clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
@@ -91,6 +94,8 @@ interface Window {
   const memoryHintEl = document.getElementById('memoryHint') as HTMLParagraphElement;
   const memoryListEl = document.getElementById('memoryList') as HTMLUListElement;
   const openMemoryFileBtn = document.getElementById('openMemoryFile') as HTMLButtonElement;
+  const openDataDirBtn = document.getElementById('openDataDir') as HTMLButtonElement;
+  const appVersionEl = document.getElementById('appVersion') as HTMLSpanElement;
   const clearMemoryBtn = document.getElementById('clearMemory') as HTMLButtonElement;
   const balanceTextEl = document.getElementById('balanceText') as HTMLParagraphElement;
   const refreshBalanceBtn = document.getElementById('refreshBalance') as HTMLButtonElement;
@@ -157,6 +162,8 @@ interface Window {
     apiKeyHintEl.textContent = data.apiKeyHint;
     apiKeyHintEl.className = data.apiKeyState === 'unreadable' ? 'hint warn' : 'hint';
     userDataHintEl.textContent = `数据目录：${data.userDataPath}`;
+    // 版本号放这里：确认"我装的到底是哪一版"（更新完也能立刻核对）
+    appVersionEl.textContent = `版本：${data.version}`;
     baseURLEl.value = data.baseURL;
     modelEl.value = data.model;
     toggleShortcutEl.value = data.toggleShortcut;
@@ -239,6 +246,12 @@ interface Window {
   // 打开记忆文件（可以直接改文字、删整行）；清空全部记忆走主进程的原生确认框。
   openMemoryFileBtn.addEventListener('click', () => {
     window.settingsAPI.openMemoryFile();
+  });
+
+  // 打开数据目录：日志（logs/app.log）、设置、聊天记录、记忆都在里面，
+  // 反馈问题时一键打开，不用手打 %APPDATA% 路径。
+  openDataDirBtn.addEventListener('click', () => {
+    window.settingsAPI.openDataDir();
   });
 
   clearMemoryBtn.addEventListener('click', async () => {

@@ -65,6 +65,7 @@ function toSettingsData(): SettingsData {
     apiKeyState: keyStatus.state,
     apiKeyHint: describeApiKeyStatus(keyStatus),
     userDataPath: app.getPath('userData'),
+    version: app.getVersion(),
     activePersona: s.activePersona,
     personas: listPersonas(),
     afkAfterMinutes: s.afkAfterMinutes,
@@ -189,6 +190,12 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
   ipcMain.on('settings:open-persona-file', () => {
     const settings = loadSettings();
     shell.openPath(personaFilePath(settings.activePersona));
+  });
+
+  // 打开数据目录：里面有日志（logs/app.log）、设置、聊天记录、记忆，
+  // 反馈问题时让用户一键打开，比让他照着手打 %APPDATA% 路径强得多。
+  ipcMain.on('settings:open-data-dir', () => {
+    shell.openPath(app.getPath('userData'));
   });
 
   // 打开记忆文件：用户可以直接在编辑器里改文字或删掉某几行（和"打开人设文件"一个路子）。

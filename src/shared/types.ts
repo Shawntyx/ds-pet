@@ -216,6 +216,8 @@ export interface SettingsData {
   apiKeyHint: string;
   /** 应用数据目录（settings.json / apikey.enc / chat / memory 都在这里），排错时给用户看 */
   userDataPath: string;
+  /** 应用版本号（设置页显示，方便确认"我装的到底是哪一版"） */
+  version: string;
   activePersona: string;
   personas: string[];
   afkAfterMinutes: number;
@@ -245,6 +247,8 @@ export interface SettingsBridge {
   load(): Promise<SettingsData>;
   save(data: Partial<SettingsData> & { apiKey?: string }): Promise<{ ok: boolean; error?: string }>;
   openPersonaFile(): void;
+  /** 用文件管理器打开应用数据目录（里面有日志、设置、聊天记录，反馈问题时方便取） */
+  openDataDir(): void;
   refreshBalance(): Promise<BalanceView>;
   /** 主进程查到新余额时主动推过来，设置页不用重新打开就能看到最新数字 */
   onBalanceChanged(callback: (data: SettingsData) => void): void;

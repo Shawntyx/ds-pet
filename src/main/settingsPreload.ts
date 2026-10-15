@@ -11,6 +11,9 @@ const bridge: SettingsBridge = {
   openPersonaFile(): void {
     ipcRenderer.send('settings:open-persona-file');
   },
+  openDataDir(): void {
+    ipcRenderer.send('settings:open-data-dir');
+  },
   refreshBalance(): Promise<BalanceView> {
     return ipcRenderer.invoke('settings:refresh-balance');
   },
