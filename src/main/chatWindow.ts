@@ -60,16 +60,12 @@ export function isChatWindowOpen(): boolean {
   return isWindowVisible(chatWindow);
 }
 
-/** 面板开着时跟着桌宠挪（她自己走动/被拖走的时候面板不会掉队）。 */
-function followPet(): void {
-  if (!isWindowVisible(chatWindow)) return;
-  positionNearPet(chatWindow as BrowserWindow);
-}
-
 export function showChatWindow(): void {
   if (!chatWindow || chatWindow.isDestroyed()) {
     chatWindow = createChatWindow();
   }
+  // 只在打开的时候摆一次位置（挨着她）。之后她走动/被拖走，面板都待在原地不动：
+  // 跟着她跑、还会在屏幕左右两边来回翻，反而看不清在聊什么。
   positionNearPet(chatWindow);
   chatWindow.show();
   chatWindow.focus();
@@ -77,7 +73,6 @@ export function showChatWindow(): void {
 
 export function initChat(petWindow: BrowserWindow): void {
   petWindowRef = petWindow;
-  petWindow.on('move', followPet);
 
   ipcMain.removeHandler('chat:get-history');
   ipcMain.removeAllListeners('chat:send-message');

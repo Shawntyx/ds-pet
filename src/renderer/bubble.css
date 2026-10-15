@@ -10,24 +10,27 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* 贴底排：输入框永远固定在窗口底部，文字多了往上长，不会被挤出窗口 */
+  justify-content: flex-end;
   gap: 6px;
   box-sizing: border-box;
   padding: 4px;
 }
 
-/* 文字框和右上角的 × 放一个相对定位的容器里 */
+/* 文字框和右上角的 × 放一个相对定位的容器里；容器宽度跟着文字走，好让 × 贴着气泡右上角 */
 #bubbleWrap {
   position: relative;
-  width: 100%;
-  display: flex;
-  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  flex: none;
 }
 
 #bubble {
   max-width: 208px;
-  max-height: 76px;
-  overflow: hidden;
+  /* 最多长到这么高，再长就在气泡内部滚动（SVG 里能滚，不会再把输入框顶出屏幕） */
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px 14px 8px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.95);
@@ -46,7 +49,7 @@ html, body {
 #closeBubble {
   position: absolute;
   top: -7px;
-  right: 2px;
+  right: -6px;
   width: 18px;
   height: 18px;
   padding: 0;
@@ -68,6 +71,7 @@ html, body {
 
 #quickForm {
   width: 100%;
+  flex: none;
   box-sizing: border-box;
 }
 

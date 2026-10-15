@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld('bubbleAPI', {
   close(): void {
     ipcRenderer.send('bubble:close');
   },
+  resize(height: number): void {
+    ipcRenderer.send('bubble:resize', height);
+  },
 });

@@ -23,12 +23,23 @@ let hideTimer: ReturnType<typeof setTimeout> | null = null;
 let pinned = false;
 /** 正在通过气泡流式回复：这期间也不该自动收起（不然回复看一半就没了）。 */
 let streaming = false;
+/** 已经挂过 'move' 监听的窗口，避免 initBubble 被反复调用时重复挂。 */
+let moveListenerWindow: BrowserWindow | null = null;
 
 const BUBBLE_WIDTH = 220;
-const BUBBLE_HEIGHT = 130; // 上面文字区 + 下面一行输入框
+/** 气泡窗口高度是**跟着内容变的**（渲染进程量好高度报上来），下面两个是夹取范围。
+ *  空文字时大约 79px（输入框 29 + 上下 padding 8 + 间距 6 + 气泡一行 36），所以下限给 80；
+ *  上限 300 ≈ 气泡的 CSS max-height(240) 加输入框和留白，再多就靠气泡内部滚动。
+ *  范围贴近真实内容高度，气泡才不会"飘"在离她很远的地方。 */
+export const BUBBLE_MIN_HEIGHT = 80;
+export const BUBBLE_MAX_HEIGHT = 300;
+const DEFAULT_BUBBLE_HEIGHT = 130;
 const GAP_PX = 8;
 /** 默认显示 8 秒。用户回过话（pinned）或还在流式输出时不自动收。 */
 const DEFAULT_BUBBLE_MS = 8000;
+
+/** 当前内容需要的高度（渲染进程上报）。移动时不会改它——尺寸只在内容变化时变。 */
+let contentHeight = DEFAULT_BUBBLE_HEIGHT;
 
 /**
  * 现在该不该自动收起气泡？（纯函数，见 tests/bubbleWindow.test.js）
@@ -42,16 +53,23 @@ export function shouldAutoHide(state: {
   return !state.pinned && !state.streaming && !state.focused;
 }
 
+/** 把渲染进程量出来的高度夹进合理区间（纯函数，见 tests/bubbleWindow.test.js）。 */
+export function clampBubbleHeight(height: number): number {
+  if (!Number.isFinite(height)) return DEFAULT_BUBBLE_HEIGHT;
+  return Math.min(BUBBLE_MAX_HEIGHT, Math.max(BUBBLE_MIN_HEIGHT, Math.round(height)));
+}
+
 function createBubbleWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: BUBBLE_WIDTH,
-    height: BUBBLE_HEIGHT,
+    height: contentHeight,
     title: '气泡',
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    resizable: false,
+    // 高度要按内容动态调整，所以不能锁死 resizable；窗口没有边框，用户也拖不动它。
+    resizable: true,
     hasShadow: false,
     // 要能点进输入框打字，所以不能像菜单/桌宠本体那样整体 focusable:false；
     // 用 showInactive() 弹出时不抢焦点，只有用户真的点了输入框才会拿到焦点。
@@ -86,15 +104,23 @@ function clearHideTimer(): void {
 
 /**
  * 算气泡该放哪。位置逻辑在 popupPlacement.ts 里（纯函数、有测试），这里只负责把
- * "角色实际画面"和屏幕工作区喂给它：人物贴着左/右边缘时气泡会改摆到人物旁边，
- * 而不是被顶到屏幕外面去。
+ * "角色实际画面"、屏幕工作区和**当前内容高度**喂给它：人物贴着左/右边缘时气泡会改摆到
+ * 人物旁边，而不是被顶到屏幕外面去。
  */
 function computeBubblePosition(): { x: number; y: number } {
   const anchor = petAnchorRect();
   const { workArea } = screen.getDisplayMatching(anchor);
-  return placeBubble(anchor, workArea, { width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT }, GAP_PX);
+  return placeBubble(anchor, workArea, { width: BUBBLE_WIDTH, height: contentHeight }, GAP_PX);
 }
 
+/** 摆位（尺寸 + 位置都按当前内容高度算）。只在"打开/内容变化"时调用。 */
+function applyBubbleBounds(): void {
+  if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
+  const { x, y } = computeBubblePosition();
+  bubbleWindow.setBounds({ x, y, width: BUBBLE_WIDTH, height: contentHeight });
+}
+
+/** 她在移动：**只挪位置，绝不动尺寸**——尺寸是内容决定的，跟着移动变会看起来乱跳。 */
 function repositionIfVisible(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleWindow.isVisible()) return;
   if (!petWindowRef) return;
@@ -104,12 +130,25 @@ function repositionIfVisible(): void {
 
 export function initBubble(petWindow: BrowserWindow): void {
   petWindowRef = petWindow;
-  // 桌宠走动/被拖/弹跳时持续跟着挪（只在气泡正显示的时候才会真的动，见 repositionIfVisible）。
-  petWindow.on('move', repositionIfVisible);
+  // 桌宠走动/被拖/弹跳时跟着挪（只在气泡正显示的时候才会真的动，见 repositionIfVisible）。
+  if (moveListenerWindow !== petWindow) {
+    petWindow.on('move', repositionIfVisible);
+    moveListenerWindow = petWindow;
+  }
 
   ipcMain.removeAllListeners('bubble:send-message');
   ipcMain.removeAllListeners('bubble:open-chat');
   ipcMain.removeAllListeners('bubble:close');
+  ipcMain.removeAllListeners('bubble:resize');
+
+  // 渲染进程量好"装下这段文字需要多高"再报上来：只有内容变化时会走这里，
+  // 移动过程不会调，所以气泡不会一边跟着她跑一边变高变矮。
+  ipcMain.on('bubble:resize', (_event, height: number) => {
+    const next = clampBubbleHeight(height);
+    if (next === contentHeight) return;
+    contentHeight = next;
+    applyBubbleBounds();
+  });
 
   ipcMain.on('bubble:send-message', (_event, text: string) => {
     if (typeof text !== 'string' || !text.trim()) return;
@@ -174,8 +213,9 @@ export function showBubbleOverlay(text: string, durationMs = DEFAULT_BUBBLE_MS):
 
   const reveal = (): void => {
     win.webContents.send('bubble:set-text', text);
-    const { x, y } = computeBubblePosition();
-    win.setPosition(x, y);
+    // 先用当前高度定位显示（渲染进程量完新高度会发 bubble:resize 再调一次），
+    // 这样出现的位置基本就是对的，不会先闪一下错位置。
+    applyBubbleBounds();
     win.showInactive(); // 不抢焦点，不打断用户正在别的窗口里打字
   };
   if (win.webContents.isLoading()) {

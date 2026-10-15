@@ -16,6 +16,8 @@ const MENU_HEIGHT = 320;
 let menuWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
 let setVisibleRef: ((visible: boolean) => void) | null = null;
+/** 已经挂过 'move' 监听的窗口，避免 initContextMenu 被反复调用时重复挂（会一次移动触发多次摆位）。 */
+let moveListenerWindow: BrowserWindow | null = null;
 
 function createMenuWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -41,18 +43,29 @@ function createMenuWindow(): BrowserWindow {
   return win;
 }
 
+/** 按"角色实际画面"算菜单该摆哪（打开时和她在移动时都用这个）。 */
+function positionMenu(): void {
+  if (!menuWindow || menuWindow.isDestroyed()) return;
+  // 摆位交给 popupPlacement（有测试）：人物贴右边时菜单会自己翻到左边，上下也会夹进工作区。
+  const anchor = petAnchorRect();
+  const { workArea } = screen.getDisplayMatching(anchor);
+  const { x, y } = placeSidePanel(anchor, workArea, { width: MENU_WIDTH, height: MENU_HEIGHT });
+  menuWindow.setPosition(Math.round(x), Math.round(y));
+}
+
+/** 菜单开着的时候她走开了：菜单跟着挪，不然就会孤零零留在原地指向空气。 */
+function followPet(): void {
+  if (!menuWindow || menuWindow.isDestroyed() || !menuWindow.isVisible()) return;
+  positionMenu();
+}
+
 function showMenu(): void {
   if (!petWindowRef) return;
   if (!menuWindow || menuWindow.isDestroyed()) {
     menuWindow = createMenuWindow();
   }
 
-  // 摆位交给 popupPlacement（有测试）：人物贴右边时菜单会自己翻到左边，上下也会夹进工作区。
-  const anchor = petAnchorRect();
-  const { workArea } = screen.getDisplayMatching(anchor);
-  const { x, y } = placeSidePanel(anchor, workArea, { width: MENU_WIDTH, height: MENU_HEIGHT });
-
-  menuWindow.setPosition(Math.round(x), Math.round(y));
+  positionMenu();
 
   const show = (): void => {
     if (!menuWindow) return;
@@ -100,6 +113,11 @@ function handleAction(actionId: string): void {
 export function initContextMenu(petWindow: BrowserWindow, setVisible: (visible: boolean) => void): void {
   petWindowRef = petWindow;
   setVisibleRef = setVisible;
+
+  if (moveListenerWindow !== petWindow) {
+    petWindow.on('move', followPet);
+    moveListenerWindow = petWindow;
+  }
 
   ipcMain.removeAllListeners('pet:request-context-menu');
   ipcMain.removeAllListeners('menu:action');

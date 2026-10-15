@@ -3,7 +3,12 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { shouldAutoHide } = require('../dist/main/bubbleWindow');
+const {
+  shouldAutoHide,
+  clampBubbleHeight,
+  BUBBLE_MIN_HEIGHT,
+  BUBBLE_MAX_HEIGHT,
+} = require('../dist/main/bubbleWindow');
 
 test('普通气泡到点自动收起', () => {
   assert.equal(shouldAutoHide({ pinned: false, streaming: false, focused: false }), true);
@@ -25,4 +30,17 @@ test('焦点在气泡里（用户在打字）时不收起', () => {
 
 test('三种原因同时存在也不收起', () => {
   assert.equal(shouldAutoHide({ pinned: true, streaming: true, focused: true }), false);
+});
+
+test('气泡高度按内容夹在上下限之间', () => {
+  assert.equal(clampBubbleHeight(160), 160);
+  assert.equal(clampBubbleHeight(10), BUBBLE_MIN_HEIGHT); // 太空了就缩到最小
+  assert.equal(clampBubbleHeight(9999), BUBBLE_MAX_HEIGHT); // 太长了就靠气泡内部滚动
+  assert.equal(clampBubbleHeight(NaN), 130); // 量不出来时退回默认高度
+  assert.equal(clampBubbleHeight(160.4), 160); // 取整，避免像素抖动
+});
+
+test('高度上下限本身是合理的', () => {
+  assert.ok(BUBBLE_MIN_HEIGHT >= 80 && BUBBLE_MIN_HEIGHT < BUBBLE_MAX_HEIGHT);
+  assert.ok(BUBBLE_MAX_HEIGHT <= 400, '再高就该靠滚动而不是把窗口撑爆');
 });
