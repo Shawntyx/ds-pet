@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron';
 import { loadSettings } from './config';
-import { loadApiKey } from './secrets';
+import { loadApiKey, apiKeyStatus } from './secrets';
 import type { BalanceView } from '../shared/types';
 
 // DeepSeek 官方有个查余额的接口：GET {baseURL}/user/balance
@@ -83,8 +83,12 @@ export function parseBalancePayload(payload: unknown): QueryResult {
 }
 
 async function queryBalance(): Promise<QueryResult> {
+  // Key 的三种状态分开报：不然"文件在但解不开"和"从没设置过"在界面上长得一模一样。
+  const keyStatus = apiKeyStatus();
+  if (keyStatus.state === 'missing') return { error: '还没有设置 API Key' };
+  if (keyStatus.state === 'unreadable') return { error: 'API Key 读不出来，请在设置里重填' };
   const apiKey = loadApiKey();
-  if (!apiKey) return { error: '还没有设置 API Key' };
+  if (!apiKey) return { error: 'API Key 读不出来，请在设置里重填' };
 
   // DeepSeek 的 OpenAI 兼容 base URL 常被填成 https://api.deepseek.com/v1，
   // 但查余额的路径是固定的 /user/balance（不带 /v1），这里顺手把结尾的 /v1 去掉。

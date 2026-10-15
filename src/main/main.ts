@@ -10,6 +10,7 @@ import { initBubble } from './bubbleWindow';
 import { initProactive, stopProactive } from './proactive';
 import { initPresence, stopPresence } from './presence';
 import { initBalance, onBalanceChange, stopBalance } from './balance';
+import { initPetAnchor } from './petAnchor';
 import { flushChatStore, initChatStore } from './chatStore';
 import { flushMemoryStore, initMemoryStore } from './memory';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
@@ -61,8 +62,10 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-/** 依赖桌宠窗口的那几个模块（主动说话/空闲姿势/余额提醒）统一在这里启动，activate 重建窗口时也要再跑一遍。 */
+/** 依赖桌宠窗口的那几个模块（主动说话/空闲姿势/余额提醒/画面锚点）统一在这里启动，
+ * activate 重建窗口时也要再跑一遍。 */
 function initPetWindowModules(window: BrowserWindow): void {
+  initPetAnchor(window);
   initProactive(window);
   initPresence(window);
   initBalance(window);

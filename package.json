@@ -6,7 +6,7 @@
   "main": "dist/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-static.js",
-    "start": "npm run build && electron .",
+    "start": "npm run build && node scripts/start.js",
     "dev": "tsc -p tsconfig.json -w",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test \"tests/**/*.test.js\""

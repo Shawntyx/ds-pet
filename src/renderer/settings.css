@@ -69,6 +69,11 @@ input:focus, select:focus, textarea:focus {
   margin: 2px 0 8px;
 }
 
+/* Key 读不出来这类需要用户动手的情况，用红色提示 */
+.hint.warn {
+  color: #c0392b;
+}
+
 button {
   border: none;
   border-radius: 8px;

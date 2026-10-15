@@ -15,7 +15,22 @@ import { memorySection, noteCompletedExchange } from './memory';
 export const EMOTION_TAGS = ['happy', 'shy', 'sad', 'angry', 'surprised', 'love'] as const;
 export type Emotion = (typeof EMOTION_TAGS)[number];
 
-const TAG_PATTERN = new RegExp(`^\\s*\\[(${EMOTION_TAGS.join('|')})\\]\\s*`, 'i');
+/**
+ * 回复开头的"标签形状"：方括号里 1~16 个不含空格和 ] 的字符，且至少含一个字母或汉字。
+ *
+ * 为什么要认"所有"标签而不是只认已知的 6 个：模型偶尔会自己造标签（实测有过 `[hmm]`），
+ * 只认已知标签的话这种就会原样漏给用户看，变成 "[hmm] 道德哲学啊…" 这种噪音。
+ * 反过来，`[1]` 这种纯数字（有人爱用方括号列清单）不算标签，不会被吃掉。
+ */
+const TAG_SHAPE = /^\s*\[([^\]\s]{1,16})\]\s*/;
+
+/** 判断开头的标签并返回它的长度；不是标签形状就返回 null。 */
+function tagAtStart(text: string): { tag: string; length: number } | null {
+  const match = text.match(TAG_SHAPE);
+  if (!match) return null;
+  if (!/[A-Za-z\u4e00-\u9fff]/.test(match[1])) return null;
+  return { tag: match[1].toLowerCase(), length: match[0].length };
+}
 
 /** 会话历史从阶段 4 起落在 userData/chat/history.json 里（见 chatStore.ts），重启能接着聊。 */
 export function getHistory(): ChatMessage[] {
@@ -50,11 +65,14 @@ function buildContextMessages(): ChatMessage[] {
   ];
 }
 
-/** 从回复开头摘出情绪标签，返回去掉标签后的正文和识别到的情绪（没有就是 null）。 */
+/** 从回复开头摘出情绪标签，返回去掉标签后的正文和识别到的情绪（不认识的标签只去掉、不当情绪）。 */
 export function extractEmotion(text: string): { text: string; emotion: Emotion | null } {
-  const match = text.match(TAG_PATTERN);
-  if (!match) return { text: text.trim(), emotion: null };
-  return { text: text.slice(match[0].length).trim(), emotion: match[1].toLowerCase() as Emotion };
+  const found = tagAtStart(text);
+  if (!found) return { text: text.trim(), emotion: null };
+  const emotion = (EMOTION_TAGS as readonly string[]).includes(found.tag)
+    ? (found.tag as Emotion)
+    : null;
+  return { text: text.slice(found.length).trim(), emotion };
 }
 
 /**
@@ -72,13 +90,13 @@ export function createTagStrippingRelay(onClean: (text: string) => void): (raw: 
       return;
     }
     buffer += raw;
-    const stillMaybeOpeningTag = /^\s*\[[a-zA-Z]*$/.test(buffer) && !buffer.includes(']');
-    if (stillMaybeOpeningTag && buffer.length < TAG_SNIFF_LIMIT) {
+    const stillMaybeOpeningTag = /^\s*\[[^\]\s]*$/.test(buffer) && buffer.length < TAG_SNIFF_LIMIT;
+    if (stillMaybeOpeningTag) {
       return; // 还判断不出来，继续攒
     }
     resolved = true;
-    const match = buffer.match(TAG_PATTERN);
-    const rest = match ? buffer.slice(match[0].length) : buffer;
+    const found = tagAtStart(buffer);
+    const rest = found ? buffer.slice(found.length) : buffer;
     if (rest) onClean(rest);
   };
 }

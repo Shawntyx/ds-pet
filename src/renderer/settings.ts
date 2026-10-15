@@ -34,6 +34,9 @@ interface SettingsDataView {
   model: string;
   toggleShortcut: string;
   hasApiKey: boolean;
+  apiKeyState: string;
+  apiKeyHint: string;
+  userDataPath: string;
   activePersona: string;
   personas: string[];
   afkAfterMinutes: number;
@@ -69,6 +72,7 @@ interface Window {
   const form = document.getElementById('form') as HTMLFormElement;
   const apiKeyEl = document.getElementById('apiKey') as HTMLInputElement;
   const apiKeyHintEl = document.getElementById('apiKeyHint') as HTMLParagraphElement;
+  const userDataHintEl = document.getElementById('userDataHint') as HTMLParagraphElement;
   const baseURLEl = document.getElementById('baseURL') as HTMLInputElement;
   const modelEl = document.getElementById('model') as HTMLInputElement;
   const personaEl = document.getElementById('persona') as HTMLSelectElement;
@@ -148,9 +152,11 @@ interface Window {
   }
 
   function fillForm(data: SettingsDataView): void {
-    apiKeyHintEl.textContent = data.hasApiKey
-      ? '已设置（留空保存 = 不修改；输入新的会覆盖旧的）'
-      : '还没设置，回复消息前必须先填一个';
+    // Key 状态由主进程判定（文件在不在、能不能解开），这里只负责显示；
+    // 解不开时用红字提醒重新填一次，不然用户会一直以为是"没设置"。
+    apiKeyHintEl.textContent = data.apiKeyHint;
+    apiKeyHintEl.className = data.apiKeyState === 'unreadable' ? 'hint warn' : 'hint';
+    userDataHintEl.textContent = `数据目录：${data.userDataPath}`;
     baseURLEl.value = data.baseURL;
     modelEl.value = data.model;
     toggleShortcutEl.value = data.toggleShortcut;

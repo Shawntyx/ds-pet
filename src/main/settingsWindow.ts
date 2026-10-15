@@ -1,8 +1,8 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { listPersonas, personaFilePath } from './persona';
-import { hasApiKey, saveApiKey } from './secrets';
+import { apiKeyStatus, describeApiKeyStatus, hasApiKey, saveApiKey } from './secrets';
 import { refreshTrayMenu } from './tray';
 import { getBalanceView, refreshBalance } from './balance';
 import { clearMessages, flushChatStore, messageCount } from './chatStore';
@@ -53,11 +53,15 @@ export function showSettingsWindow(): void {
 
 function toSettingsData(): SettingsData {
   const s = loadSettings();
+  const keyStatus = apiKeyStatus();
   return {
     baseURL: s.baseURL,
     model: s.model,
     toggleShortcut: s.toggleShortcut,
     hasApiKey: hasApiKey(),
+    apiKeyState: keyStatus.state,
+    apiKeyHint: describeApiKeyStatus(keyStatus),
+    userDataPath: app.getPath('userData'),
     activePersona: s.activePersona,
     personas: listPersonas(),
     afkAfterMinutes: s.afkAfterMinutes,
@@ -100,6 +104,9 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
       const {
         apiKey,
         hasApiKey: _ignored,
+        apiKeyState: _ignoredA,
+        apiKeyHint: _ignoredB,
+        userDataPath: _ignoredC,
         personas: _ignored2,
         balance: _ignored3,
         chatMessageCount: _ignored4,

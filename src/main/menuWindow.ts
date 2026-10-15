@@ -4,6 +4,8 @@ import { loadSettings, updateSettings } from './config';
 import { refreshTrayMenu } from './tray';
 import { showChatWindow } from './chatWindow';
 import { showSettingsWindow } from './settingsWindow';
+import { petAnchorRect } from './petAnchor';
+import { placeSidePanel } from './popupPlacement';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
@@ -44,18 +46,10 @@ function showMenu(): void {
     menuWindow = createMenuWindow();
   }
 
-  const petBounds = petWindowRef.getBounds();
-  const { workArea } = screen.getDisplayMatching(petBounds);
-
-  let x = petBounds.x + petBounds.width + 8;
-  if (x + MENU_WIDTH > workArea.x + workArea.width) {
-    x = petBounds.x - MENU_WIDTH - 8;
-  }
-  let y = petBounds.y;
-  if (y + MENU_HEIGHT > workArea.y + workArea.height) {
-    y = workArea.y + workArea.height - MENU_HEIGHT;
-  }
-  if (y < workArea.y) y = workArea.y;
+  // 摆位交给 popupPlacement（有测试）：人物贴右边时菜单会自己翻到左边，上下也会夹进工作区。
+  const anchor = petAnchorRect();
+  const { workArea } = screen.getDisplayMatching(anchor);
+  const { x, y } = placeSidePanel(anchor, workArea, { width: MENU_WIDTH, height: MENU_HEIGHT });
 
   menuWindow.setPosition(Math.round(x), Math.round(y));
 

@@ -24,9 +24,17 @@ interface Window {
     onTriggerAction(callback: (action: PetMenuAction) => void): void;
     onShown(callback: () => void): void;
     onThinkingStart(callback: () => void): void;
-    onReply(callback: (payload: { text: string; emotion: string | null; pose?: string | null }) => void): void;
+    onReply(
+      callback: (payload: {
+        text: string;
+        emotion: string | null;
+        pose?: string | null;
+        bubble?: boolean;
+      }) => void
+    ): void;
     onPresence(callback: (presence: PresenceState) => void): void;
     onBalanceLow(callback: (payload: { text: string }) => void): void;
+    setAnchor(rect: { dx: number; dy: number; width: number; height: number }): void;
     showBubble(text: string): void;
   };
 }
@@ -112,6 +120,24 @@ async function setState(next: PetState): Promise<void> {
     spriteEl.style.transform = '';
     spriteEl.style.transformOrigin = '';
   }
+
+  publishAnchor();
+}
+
+/**
+ * 告诉主进程"角色实际画面"相对窗口的位置：窗口是个方块，角色周围一圈是透明的，
+ * 探头姿势还整体缩小到 0.75 倍。气泡/右键菜单/聊天面板按这个矩形来摆，
+ * 才不会飘得离人物很远、或者明明贴边了却没翻到另一边。
+ */
+function publishAnchor(): void {
+  const scale = state === 'peekHome' ? POSES.peek.homeScale : 1;
+  const size = spriteSize * scale;
+  window.petAPI.setAnchor({
+    dx: (spriteSize - size) / 2, // peekHome 时缩放在水平方向居中
+    dy: spriteSize - size, // 缩放锚点在底部，所以上边留白
+    width: size,
+    height: size,
+  });
 }
 
 /** 播一个临时姿势，过一会儿自动回到待机（除非中途被拖走了）。 */
@@ -278,11 +304,12 @@ window.petAPI.onThinkingStart(() => {
 
 // 模型回完了（或者聊天面板关闭时补播最新一句）：按情绪标签切表情 + 冒气泡。
 // 主动说话（深夜提醒）会额外带一个整张姿势 pose，比情绪标签更贴题，优先用它。
-window.petAPI.onReply(({ text, emotion, pose }) => {
+// bubble=false（聊天面板开着的时候）就只换表情、不弹气泡，免得挡着面板。
+window.petAPI.onReply(({ text, emotion, pose, bubble }) => {
   const next =
     (pose && POSES.poseState[pose]) || (emotion && POSES.emotionState[emotion]) || 'replyHappy';
   const bubbleText = text.length > 60 ? `${text.slice(0, 57)}…` : text;
-  playTransient(next, 2400, bubbleText || undefined);
+  playTransient(next, 2400, bubble === false ? undefined : bubbleText || undefined);
 });
 
 // 余额不足：主进程只在"够用 → 不足"那一刻发一次，这里直接播，不需要去重。
@@ -499,6 +526,7 @@ async function init(): Promise<void> {
   document.getElementById('stage')!.style.height = `${spriteSize}px`;
 
   await setSprite(POSES.spriteFiles.idle, true, false); // 先把待机图解码缓存好，再叠一下打招呼
+  publishAnchor(); // 让主进程先拿到一次画面矩形，气泡/菜单第一次弹就知道该摆哪
   playTransient('greet', 1400);
 }
 

@@ -1,6 +1,8 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { createTagStrippingRelay, getHistory, sendUserMessage } from './chatSession';
+import { petAnchorRect } from './petAnchor';
+import { placeSidePanel } from './popupPlacement';
 import type { ChatMessageView } from '../shared/types';
 
 let chatWindow: BrowserWindow | null = null;
@@ -38,19 +40,17 @@ function createChatWindow(): BrowserWindow {
 
 function positionNearPet(win: BrowserWindow): void {
   if (!petWindowRef) return;
-  const petBounds = petWindowRef.getBounds();
-  const { workArea } = screen.getDisplayMatching(petBounds);
+  const anchor = petAnchorRect();
+  const { workArea } = screen.getDisplayMatching(anchor);
   const [w, h] = win.getSize();
+  // 和右键菜单同一套摆位规则：人物贴右边缘时面板自动翻到左边。
+  const { x, y } = placeSidePanel(anchor, workArea, { width: w, height: h }, 12);
+  win.setPosition(x, y);
+}
 
-  let x = petBounds.x - w - 12;
-  if (x < workArea.x) x = petBounds.x + petBounds.width + 12;
-  if (x + w > workArea.x + workArea.width) x = workArea.x + workArea.width - w;
-
-  let y = petBounds.y + petBounds.height - h;
-  if (y < workArea.y) y = workArea.y;
-  if (y + h > workArea.y + workArea.height) y = workArea.y + workArea.height - h;
-
-  win.setPosition(Math.round(x), Math.round(y));
+/** 聊天面板现在是不是开着——开着的时候不再弹气泡（文本就在面板里，弹了是重复的）。 */
+export function isChatWindowOpen(): boolean {
+  return !!chatWindow && !chatWindow.isDestroyed() && chatWindow.isVisible();
 }
 
 export function showChatWindow(): void {
@@ -84,8 +84,9 @@ export function initChat(petWindow: BrowserWindow): void {
       onDone: (payload) => {
         lastReply = payload;
         win?.webContents.send('chat:done');
-        // 聊天面板开着的时候也让桌宠同步换表情，不用等关闭面板才有反应。
-        petWindowRef?.webContents.send('pet:reply', payload);
+        // 聊天面板开着的时候只让桌宠换表情，不再弹气泡（文本已经在面板里了）；
+        // 面板关掉时下面的 'closed' 回调会把最后一句用气泡补上。
+        petWindowRef?.webContents.send('pet:reply', { ...payload, bubble: false });
       },
       onError: (message) => {
         win?.webContents.send('chat:error', message);

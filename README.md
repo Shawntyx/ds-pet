@@ -39,11 +39,45 @@ npm run typecheck   # 只做类型检查，不产出文件
 npm test            # 先 build，再跑 tests/ 里的纯函数单元测试（node --test）
 ```
 
+### 起不来的时候
+
+`npm start` 走的是 `node scripts/start.js`，它会帮你去掉环境里的 `ELECTRON_RUN_AS_NODE`。
+
+这个变量很坑：它由某些终端/工具链（比如 DSH 的终端）默认设置，一旦存在，`electron.exe` 会以**纯 Node 模式**启动——`require('electron').app` 是 `undefined`，主进程第一行就崩，表现就是"npm start 完全跑不起来，也不说为什么"。手动跑的话：
+
+```powershell
+Remove-Item Env:ELECTRON_RUN_AS_NODE   # PowerShell
+# set ELECTRON_RUN_AS_NODE=           # cmd
+```
+
 ## 首次使用：填 API Key
 
 阶段 2 起需要接 DeepSeek（或其他 OpenAI 兼容服务）才能聊天。托盘图标右键 → 设置，或者在桌宠身上右键 → 设置，填 API Key、Base URL（默认 `https://api.deepseek.com`）、模型名（默认 `deepseek-chat`）。Key 用 Electron `safeStorage` 加密存在本机，不会进代码库或日志。
 
 人设文件在设置里点"打开人设文件"就能编辑，改完直接保存生效，不用重启、不用点"重新加载"。首次启动会自动把 `persona/default.md` 复制一份到用户数据目录，以后改的是那份复制出来的，不会因为代码更新被覆盖。
+
+### Key 明明填过却说没有？
+
+设置页顶部会显示 Key 的**三种状态**，写得很直白：
+
+- `还没设置，回复消息前必须先填一个` —— 真的没填过。
+- `已设置（留空保存 = 不修改）` —— 正常，能用。
+- `本机存着的 Key 读不出来了（原因…）` —— **文件在，但解不开**，红字提示，重新填一次就好。
+
+Windows 上 Key 是用 Chromium 的 safeStorage（OSCrypt）加密的：文件里的密文要靠同一个应用数据目录下 `Local State` 里的密钥才能解开，而那个密钥又由 Windows 账户的 DPAPI 保护。所以**重启电脑本身不会让 Key 失效**，但下面这些会：换了 Windows 账户、重置过系统密码、或者换了应用数据目录（比如直接用 `electron 某个js文件` 启动，应用名会变成默认的 `Electron`，目录也跟着变，等于换了个 profile）。
+
+排查命令（会打印目录、加密是否可用、能不能解开，不会打印 Key 内容）：
+
+```powershell
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+node_modules\electron\dist\electron.exe scripts\diagnose-key.js
+```
+
+## 气泡和面板的摆位
+
+- 聊天面板开着的时候，她的回复**只换表情、不弹气泡**（文本已经在面板里了，弹出来是重复的，也会挡视线）；面板关掉时才用气泡补上最后一句（SPEC §5.2 的要求）。
+- 其他时候（摸头/投喂/主动说话/余额提醒）都冒气泡，气泡下面那行输入框可以直接回她一句，点气泡正文则打开完整聊天面板。
+- 气泡、右键菜单、聊天面板都会按**角色实际画面**（不是那个 220×220 的方形窗口，周围一圈是透明的）来避让屏幕边缘：人物贴着左边时气泡/菜单出现在右边，贴着右边时翻到左边，上下也会夹进工作区。摆位算法在 `src/main/popupPlacement.ts`，有单元测试。
 
 ## 当前进度
 

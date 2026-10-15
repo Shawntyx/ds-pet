@@ -38,12 +38,23 @@ const bridge: PetBridge = {
     ipcRenderer.on('pet:thinking-start', () => callback());
   },
   onReply(
-    callback: (payload: { text: string; emotion: string | null; pose?: string | null }) => void
+    callback: (payload: {
+      text: string;
+      emotion: string | null;
+      pose?: string | null;
+      bubble?: boolean;
+    }) => void
   ): void {
     ipcRenderer.on(
       'pet:reply',
-      (_event, payload: { text: string; emotion: string | null; pose?: string | null }) => callback(payload)
+      (
+        _event,
+        payload: { text: string; emotion: string | null; pose?: string | null; bubble?: boolean }
+      ) => callback(payload)
     );
+  },
+  setAnchor(rect: { dx: number; dy: number; width: number; height: number }): void {
+    ipcRenderer.send('pet:set-anchor', rect);
   },
   onPresence(callback: (presence: PresenceState) => void): void {
     ipcRenderer.on('pet:presence', (_event, presence: PresenceState) => callback(presence));

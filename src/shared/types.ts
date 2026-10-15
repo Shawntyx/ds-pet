@@ -148,8 +148,18 @@ export interface PetBridge {
   /** 聊天面板发消息后、模型第一个 token 回来之前，切到"思考中"姿势。 */
   onThinkingStart(callback: () => void): void;
   /** 模型回复完了（或聊天面板关闭时），播情绪姿势 + 气泡显示这句话。
-   * 主动说话（深夜提醒/余额提醒）会额外带上 pose，指定整张姿势，优先于 emotion。 */
-  onReply(callback: (payload: { text: string; emotion: string | null; pose?: string | null }) => void): void;
+   * 主动说话（深夜提醒/余额提醒）会额外带上 pose，指定整张姿势，优先于 emotion；
+   * bubble=false 表示"只换表情、不弹气泡"（聊天面板开着时用）。 */
+  onReply(
+    callback: (payload: {
+      text: string;
+      emotion: string | null;
+      pose?: string | null;
+      bubble?: boolean;
+    }) => void
+  ): void;
+  /** 上报"角色实际画面"相对窗口的偏移，气泡/菜单/聊天面板据此避让屏幕边缘。 */
+  setAnchor(rect: { dx: number; dy: number; width: number; height: number }): void;
   /** 用户走开/回来了，换 afk/sleep 姿势或醒过来。 */
   onPresence(callback: (presence: PresenceState) => void): void;
   /** 余额低于阈值时提醒一次。 */
@@ -190,8 +200,14 @@ export interface SettingsData {
   baseURL: string;
   model: string;
   toggleShortcut: string;
-  /** 是否已经设置过 API Key——只告诉界面"有没有"，从不把真实值传出主进程。 */
+  /** 是否已经设置了"能读出来"的 API Key（文件在但解不开时算 false） */
   hasApiKey: boolean;
+  /** 'missing' | 'ok' | 'unreadable'：unreadable 时界面要提醒重新填一次 */
+  apiKeyState: string;
+  /** 直接给人看的 Key 状态说明（主进程拼好，界面不用自己判断） */
+  apiKeyHint: string;
+  /** 应用数据目录（settings.json / apikey.enc / chat / memory 都在这里），排错时给用户看 */
+  userDataPath: string;
   activePersona: string;
   personas: string[];
   afkAfterMinutes: number;

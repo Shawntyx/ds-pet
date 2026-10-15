@@ -1,6 +1,8 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { createTagStrippingRelay, sendUserMessage } from './chatSession';
+import { petAnchorRect } from './petAnchor';
+import { placeBubble } from './popupPlacement';
 
 // 之前气泡是画在桌宠窗口自己里面的（#bubble 用 translateY(-100%) 往上顶），
 // 但桌宠窗口就只有角色那么大，上面完全没有多余空间——气泡其实从阶段 1 开始就一直被裁掉、
@@ -14,8 +16,7 @@ let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
 const BUBBLE_WIDTH = 220;
 const BUBBLE_HEIGHT = 130; // 上面文字区 + 下面一行输入框
-const EDGE_ZONE_PX = 40; // 桌宠离屏幕左/右边缘多近算"贴墙"，这时气泡改放旁边而不是上方
-const GAP_PX = 6;
+const GAP_PX = 8;
 
 function createBubbleWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -58,46 +59,20 @@ function createBubbleWindow(): BrowserWindow {
 }
 
 /**
- * 算气泡该放哪：默认贴桌宠正上方；上面放不下（比如贴着屏幕顶边）就放下方；
- * 桌宠贴着屏幕左/右边缘（扒边缘探头，或者单纯走到了那附近）时，改放桌宠旁边，
- * 不然气泡会跟着桌宠一起被顶到屏幕外面去。
+ * 算气泡该放哪。位置逻辑在 popupPlacement.ts 里（纯函数、有测试），这里只负责把
+ * "角色实际画面"和屏幕工作区喂给它：人物贴着左/右边缘时气泡会改摆到人物旁边，
+ * 而不是被顶到屏幕外面去。
  */
-function computeBubblePosition(
-  petBounds: { x: number; y: number; width: number; height: number },
-  workArea: { x: number; y: number; width: number; height: number }
-): { x: number; y: number } {
-  const nearLeftWall = petBounds.x - workArea.x <= EDGE_ZONE_PX;
-  const nearRightWall = workArea.x + workArea.width - (petBounds.x + petBounds.width) <= EDGE_ZONE_PX;
-
-  let x: number;
-  let y: number;
-
-  if (nearLeftWall && !nearRightWall) {
-    // 贴左墙：气泡放桌宠右边
-    x = petBounds.x + petBounds.width + GAP_PX;
-    y = petBounds.y + petBounds.height / 2 - BUBBLE_HEIGHT / 2;
-  } else if (nearRightWall && !nearLeftWall) {
-    // 贴右墙：气泡放桌宠左边
-    x = petBounds.x - BUBBLE_WIDTH - GAP_PX;
-    y = petBounds.y + petBounds.height / 2 - BUBBLE_HEIGHT / 2;
-  } else {
-    // 默认：正上方；放不下就放下方
-    x = petBounds.x + petBounds.width / 2 - BUBBLE_WIDTH / 2;
-    y = petBounds.y - BUBBLE_HEIGHT - GAP_PX;
-    if (y < workArea.y) y = petBounds.y + petBounds.height + GAP_PX;
-  }
-
-  x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - BUBBLE_WIDTH));
-  y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - BUBBLE_HEIGHT));
-  return { x: Math.round(x), y: Math.round(y) };
+function computeBubblePosition(): { x: number; y: number } {
+  const anchor = petAnchorRect();
+  const { workArea } = screen.getDisplayMatching(anchor);
+  return placeBubble(anchor, workArea, { width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT }, GAP_PX);
 }
 
 function repositionIfVisible(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed() || !bubbleWindow.isVisible()) return;
   if (!petWindowRef) return;
-  const petBounds = petWindowRef.getBounds();
-  const { workArea } = screen.getDisplayMatching(petBounds);
-  const { x, y } = computeBubblePosition(petBounds, workArea);
+  const { x, y } = computeBubblePosition();
   bubbleWindow.setPosition(x, y);
 }
 
@@ -118,7 +93,8 @@ export function initBubble(petWindow: BrowserWindow): void {
       onDelta: (delta) => relayDelta(delta),
       onDone: (payload) => {
         win?.webContents.send('bubble:done');
-        petWindowRef?.webContents.send('pet:reply', payload);
+        // 回复本来就在气泡里流式显示出来了，不用再弹一次气泡——只让桌宠换个表情。
+        petWindowRef?.webContents.send('pet:reply', { ...payload, bubble: false });
       },
       onError: (message) => win?.webContents.send('bubble:error', message),
     });
@@ -132,7 +108,7 @@ export function initBubble(petWindow: BrowserWindow): void {
   });
 }
 
-export function showBubbleOverlay(text: string, durationMs = 2200): void {
+export function showBubbleOverlay(text: string, durationMs = 3500): void {
   if (!text) return;
   if (!bubbleWindow || bubbleWindow.isDestroyed()) {
     bubbleWindow = createBubbleWindow();
@@ -141,12 +117,8 @@ export function showBubbleOverlay(text: string, durationMs = 2200): void {
 
   const reveal = (): void => {
     win.webContents.send('bubble:set-text', text);
-    if (petWindowRef) {
-      const petBounds = petWindowRef.getBounds();
-      const { workArea } = screen.getDisplayMatching(petBounds);
-      const { x, y } = computeBubblePosition(petBounds, workArea);
-      win.setPosition(x, y);
-    }
+    const { x, y } = computeBubblePosition();
+    win.setPosition(x, y);
     win.showInactive(); // 不抢焦点，不打断用户正在别的窗口里打字
   };
   if (win.webContents.isLoading()) {

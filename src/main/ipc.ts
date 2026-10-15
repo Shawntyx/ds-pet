@@ -1,12 +1,14 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { loadSettings } from './config';
 import { showBubbleOverlay } from './bubbleWindow';
+import { setPetAnchor } from './petAnchor';
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // 窗口在 'activate' 时可能被重建，这里先清掉旧监听，避免 ipcMain.handle 重复注册报错。
   ipcMain.removeAllListeners('pet:set-ignore-mouse-events');
   ipcMain.removeAllListeners('pet:set-window-position');
   ipcMain.removeAllListeners('pet:show-bubble');
+  ipcMain.removeAllListeners('pet:set-anchor');
   ipcMain.removeHandler('pet:get-window-position');
   ipcMain.removeHandler('pet:get-work-area');
   ipcMain.removeHandler('pet:get-sprite-size');
@@ -23,6 +25,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.on('pet:show-bubble', (_event, text: string) => {
     showBubbleOverlay(text);
+  });
+
+  // 渲染进程换姿势时上报"角色画面相对窗口的矩形"，气泡/菜单据此避让屏幕边缘。
+  ipcMain.on('pet:set-anchor', (_event, rect: { dx: number; dy: number; width: number; height: number }) => {
+    setPetAnchor(rect);
   });
 
   ipcMain.handle('pet:get-window-position', () => {

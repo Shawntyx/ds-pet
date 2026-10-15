@@ -1,6 +1,7 @@
 import { BrowserWindow, powerMonitor } from 'electron';
 import { loadSettings } from './config';
 import { generateProactiveLine, pushAssistantLine } from './chatSession';
+import { isChatWindowOpen } from './chatWindow';
 import { getActiveWindowInfo } from './activeWindow';
 import { isTitleSensitive, parseFilterWords } from './privacyFilter';
 import { pickHealthLine, pickPhilosophicalQuestion } from './proactiveLines';
@@ -25,10 +26,16 @@ function rollNextInterval(avgMinutes: number): number {
 
 /** 把一句话送到桌宠那边：复用阶段 2 已有的"回复完播情绪表情 + 冒气泡"那条路径，
  * 主动说话和真的聊天回复在桌宠身上看起来是一样的，用户分不出也不需要分。
- * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。 */
+ * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。
+ * 聊天面板开着时不弹气泡——那句话说出口的同时它已经在面板里了，弹出来只会挡视线。 */
 function speak(text: string, emotion: string | null, pose: string | null = null): void {
   if (!petWindowRef || petWindowRef.isDestroyed()) return;
-  petWindowRef.webContents.send('pet:reply', { text, emotion, pose });
+  petWindowRef.webContents.send('pet:reply', {
+    text,
+    emotion,
+    pose,
+    bubble: !isChatWindowOpen(),
+  });
 }
 
 async function fireHealth(): Promise<void> {
