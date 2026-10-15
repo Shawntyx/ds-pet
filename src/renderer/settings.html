@@ -35,6 +35,17 @@
     </section>
 
     <section>
+      <h2>聊天记录</h2>
+      <label>
+        发给模型的最近轮数
+        <input id="chatHistoryRounds" type="number" min="1" step="1" />
+      </label>
+      <p class="hint" id="chatHistoryHint">还没有聊天记录</p>
+      <button type="button" id="clearChatHistory">清空聊天记录</button>
+      <p class="hint">记录只存在本机（userData/chat/history.json），重启也能接着聊；清空后不可恢复，人设文件不受影响。</p>
+    </section>
+
+    <section>
       <h2>快捷键与待机</h2>
       <label>
         隐藏/召唤

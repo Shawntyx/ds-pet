@@ -77,9 +77,23 @@ button {
   cursor: pointer;
 }
 
-#openPersonaFile {
+/* 次要按钮统一浅灰；"清空聊天记录"是破坏性操作，给个淡红提示色 */
+#openPersonaFile,
+#refreshBalance,
+#clearChatHistory {
   background: #f0f0f0;
   color: #333;
+}
+
+#clearChatHistory {
+  background: #fdecef;
+  color: #c0392b;
+}
+
+#clearChatHistory:disabled,
+#refreshBalance:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 #save {

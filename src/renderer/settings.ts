@@ -33,6 +33,8 @@ interface SettingsDataView {
   afkAfterMinutes: number;
   balanceWarnThreshold: number;
   balance: BalanceViewView;
+  chatHistoryRounds: number;
+  chatMessageCount: number;
   proactive: ProactiveSettingsView;
 }
 
@@ -44,6 +46,7 @@ interface Window {
     ): Promise<{ ok: boolean; error?: string }>;
     openPersonaFile(): void;
     refreshBalance(): Promise<BalanceViewView>;
+    clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
   };
 }
 
@@ -57,6 +60,9 @@ interface Window {
   const openPersonaFileBtn = document.getElementById('openPersonaFile') as HTMLButtonElement;
   const toggleShortcutEl = document.getElementById('toggleShortcut') as HTMLInputElement;
   const afkAfterMinutesEl = document.getElementById('afkAfterMinutes') as HTMLInputElement;
+  const chatHistoryRoundsEl = document.getElementById('chatHistoryRounds') as HTMLInputElement;
+  const chatHistoryHintEl = document.getElementById('chatHistoryHint') as HTMLParagraphElement;
+  const clearChatHistoryBtn = document.getElementById('clearChatHistory') as HTMLButtonElement;
   const balanceTextEl = document.getElementById('balanceText') as HTMLParagraphElement;
   const refreshBalanceBtn = document.getElementById('refreshBalance') as HTMLButtonElement;
   const balanceWarnThresholdEl = document.getElementById('balanceWarnThreshold') as HTMLInputElement;
@@ -105,6 +111,11 @@ interface Window {
     toggleShortcutEl.value = data.toggleShortcut;
     afkAfterMinutesEl.value = String(data.afkAfterMinutes);
     balanceWarnThresholdEl.value = String(data.balanceWarnThreshold);
+    chatHistoryRoundsEl.value = String(data.chatHistoryRounds);
+    chatHistoryHintEl.textContent =
+      data.chatMessageCount > 0
+        ? `本机已保存 ${data.chatMessageCount} 条消息（约 ${Math.ceil(data.chatMessageCount / 2)} 轮）`
+        : '还没有聊天记录';
     renderBalance(data.balance);
 
     personaEl.innerHTML = '';
@@ -139,6 +150,24 @@ interface Window {
     }
   });
 
+  // 清空聊天记录：确认框在主进程弹（原生对话框），这里只负责禁用按钮和刷新显示。
+  clearChatHistoryBtn.addEventListener('click', async () => {
+    clearChatHistoryBtn.disabled = true;
+    try {
+      const result = await window.settingsAPI.clearChatHistory();
+      if (result.ok) {
+        statusEl.textContent = `已清空 ${result.cleared} 条聊天记录`;
+        statusEl.className = 'ok';
+      } else {
+        statusEl.textContent = '';
+        statusEl.className = '';
+      }
+      fillForm(await window.settingsAPI.load());
+    } finally {
+      clearChatHistoryBtn.disabled = false;
+    }
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     statusEl.textContent = '保存中…';
@@ -151,6 +180,7 @@ interface Window {
       activePersona: personaEl.value,
       afkAfterMinutes: Math.max(1, Number(afkAfterMinutesEl.value) || 3),
       balanceWarnThreshold: Math.max(0, Number(balanceWarnThresholdEl.value) || 0),
+      chatHistoryRounds: Math.max(1, Number(chatHistoryRoundsEl.value) || 20),
       proactive: {
         enabled: proactiveEnabledEl.checked,
         healthReminder: healthReminderEl.checked,

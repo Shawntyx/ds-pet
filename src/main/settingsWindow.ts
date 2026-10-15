@@ -1,10 +1,11 @@
-import { BrowserWindow, ipcMain, shell } from 'electron';
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { listPersonas, personaFilePath } from './persona';
 import { hasApiKey, saveApiKey } from './secrets';
 import { refreshTrayMenu } from './tray';
 import { getBalanceView, refreshBalance } from './balance';
+import { clearMessages, flushChatStore, messageCount } from './chatStore';
 import { registerGlobalShortcuts } from './shortcuts';
 import type { SettingsData } from '../shared/types';
 
@@ -53,6 +54,8 @@ function toSettingsData(): SettingsData {
     afkAfterMinutes: s.afkAfterMinutes,
     balanceWarnThreshold: s.balanceWarnThreshold,
     balance: getBalanceView(),
+    chatHistoryRounds: s.chatHistoryRounds,
+    chatMessageCount: messageCount(),
     proactive: s.proactive,
   };
 }
@@ -64,14 +67,22 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
   ipcMain.removeHandler('settings:load');
   ipcMain.removeHandler('settings:save');
   ipcMain.removeHandler('settings:refresh-balance');
+  ipcMain.removeHandler('settings:clear-chat-history');
   ipcMain.removeAllListeners('settings:open-persona-file');
 
   ipcMain.handle('settings:load', () => toSettingsData());
 
   ipcMain.handle('settings:save', async (_event, data: Partial<SettingsData> & { apiKey?: string }) => {
     try {
-      // balance 是只读快照不是设置项，必须剔掉，否则会被写进 settings.json。
-      const { apiKey, hasApiKey: _ignored, personas: _ignored2, balance: _ignored3, ...patch } = data;
+      // balance / chatMessageCount 是只读快照不是设置项，必须剔掉，否则会被写进 settings.json。
+      const {
+        apiKey,
+        hasApiKey: _ignored,
+        personas: _ignored2,
+        balance: _ignored3,
+        chatMessageCount: _ignored4,
+        ...patch
+      } = data;
       const keyChanged = typeof apiKey === 'string' && apiKey.trim().length > 0;
       const baseURLChanged = typeof patch.baseURL === 'string' && patch.baseURL !== loadSettings().baseURL;
       if (keyChanged) {
@@ -97,6 +108,36 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
 
   // 设置页的"立即查询"按钮走这里：不等 6 小时的定时，也不写任何设置。
   ipcMain.handle('settings:refresh-balance', () => refreshBalance());
+
+  // 清空聊天记录：删本地文件，不可恢复，所以先弹一个原生确认框。
+  ipcMain.handle('settings:clear-chat-history', async () => {
+    const count = messageCount();
+    if (count === 0) return { ok: false, cleared: 0 };
+
+    const options = {
+      type: 'question' as const,
+      buttons: ['取消', '清空'],
+      defaultId: 0,
+      cancelId: 0,
+      message: '要清空本机的聊天记录吗？',
+      detail: `会删掉已经保存的 ${count} 条消息，清空后不可恢复（人设文件和记忆不受影响）。`,
+    };
+    const parent = settingsWindow && !settingsWindow.isDestroyed() ? settingsWindow : petWindowRef;
+    const choice = parent
+      ? await dialog.showMessageBox(parent, options)
+      : await dialog.showMessageBox(options);
+    if (choice.response !== 1) return { ok: false, cleared: 0 };
+
+    const cleared = clearMessages();
+    flushChatStore();
+    // 用扫帚姿势收个尾（ASSETS.md §6 建议的用法）。
+    petWindowRef?.webContents.send('pet:reply', {
+      text: '聊天记录都擦干净啦～',
+      emotion: null,
+      pose: 'sweep',
+    });
+    return { ok: true, cleared };
+  });
 
   ipcMain.on('settings:open-persona-file', () => {
     const settings = loadSettings();

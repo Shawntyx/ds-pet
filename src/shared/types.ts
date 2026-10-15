@@ -81,6 +81,8 @@ export interface PetSettings {
   afkAfterMinutes: number;
   /** 余额低于这个数值就提醒一次（切 balance-low 姿势 + 气泡）；<=0 表示不提醒 */
   balanceWarnThreshold: number;
+  /** 发给模型时只带最近这么多轮对话（一轮 = 用户一句 + 回复一句），避免上下文越来越长 */
+  chatHistoryRounds: number;
   proactive: ProactiveSettings;
 }
 
@@ -113,6 +115,7 @@ export const DEFAULT_SETTINGS: PetSettings = {
   activePersona: 'default.md',
   afkAfterMinutes: 3,
   balanceWarnThreshold: 5,
+  chatHistoryRounds: 20,
   proactive: DEFAULT_PROACTIVE_SETTINGS,
 };
 
@@ -179,6 +182,10 @@ export interface SettingsData {
   balanceWarnThreshold: number;
   /** 余额快照：设置页只读显示，点"立即查询"会触发主进程重新查一次 */
   balance: BalanceView;
+  /** 只带最近多少轮发给模型 */
+  chatHistoryRounds: number;
+  /** 本机已经存了多少条聊天消息（设置页显示"当前记录"用） */
+  chatMessageCount: number;
   proactive: ProactiveSettings;
 }
 
@@ -188,4 +195,6 @@ export interface SettingsBridge {
   save(data: Partial<SettingsData> & { apiKey?: string }): Promise<{ ok: boolean; error?: string }>;
   openPersonaFile(): void;
   refreshBalance(): Promise<BalanceView>;
+  /** 清空本机聊天记录；主进程会先弹一个原生确认框，用户取消就返回 ok:false。 */
+  clearChatHistory(): Promise<{ ok: boolean; cleared: number }>;
 }

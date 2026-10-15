@@ -14,6 +14,9 @@ const bridge: SettingsBridge = {
   refreshBalance(): Promise<BalanceView> {
     return ipcRenderer.invoke('settings:refresh-balance');
   },
+  clearChatHistory(): Promise<{ ok: boolean; cleared: number }> {
+    return ipcRenderer.invoke('settings:clear-chat-history');
+  },
 };
 
 contextBridge.exposeInMainWorld('settingsAPI', bridge);

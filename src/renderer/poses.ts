@@ -37,7 +37,8 @@ type PetState =
   | 'afk'
   | 'sleep'
   | 'night'
-  | 'balanceLow';
+  | 'balanceLow'
+  | 'sweep';
 
 /** 互动区域：相对窗口宽高的比例矩形（0~1），方便窗口尺寸变化时跟着缩放。 */
 interface ZoneRect {
@@ -114,6 +115,8 @@ const POSES: PoseTables = {
     sleep: 'dsh-whale-state-sleep.webp',
     night: 'dsh-whale-state-night.webp',
     balanceLow: 'dsh-whale-state-balance-low.webp',
+    // 阶段 4：清空聊天记录/整理记忆时拿扫帚打扫（ASSETS.md §6 建议的用法）。
+    sweep: 'dsh-whale-state-sweep.webp',
   },
 
   emotionState: {
@@ -130,6 +133,7 @@ const POSES: PoseTables = {
     balanceLow: 'balanceLow',
     afk: 'afk',
     sleep: 'sleep',
+    sweep: 'sweep',
   },
 
   idleActionFiles: [

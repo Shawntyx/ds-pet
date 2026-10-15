@@ -3,34 +3,48 @@ import type { ChatMessage } from '../core/providers/types';
 import { loadSettings } from './config';
 import { readPersonaContent } from './persona';
 import { loadApiKey } from './secrets';
+import {
+  appendMessage,
+  clearMessages,
+  dropLastMessage,
+  getMessages,
+  recentRounds,
+} from './chatStore';
 
 export const EMOTION_TAGS = ['happy', 'shy', 'sad', 'angry', 'surprised', 'love'] as const;
 export type Emotion = (typeof EMOTION_TAGS)[number];
 
 const TAG_PATTERN = new RegExp(`^\\s*\\[(${EMOTION_TAGS.join('|')})\\]\\s*`, 'i');
 
-/** 会话历史只存内存，进程重启就没了——聊天记录持久化是阶段 4 的事。 */
-let history: ChatMessage[] = [];
-
+/** 会话历史从阶段 4 起落在 userData/chat/history.json 里（见 chatStore.ts），重启能接着聊。 */
 export function getHistory(): ChatMessage[] {
-  return history;
+  return getMessages();
 }
 
 export function clearHistory(): void {
-  history = [];
+  clearMessages();
 }
 
 /** 主动说话里不调模型的固定台词（健康提醒/哲学问题）也记进历史，
  * 这样用户在气泡下面的输入框回一句时，模型能看到自己刚才说了什么。 */
 export function pushAssistantLine(text: string): void {
   if (!text) return;
-  history.push({ role: 'assistant', content: text });
+  appendMessage({ role: 'assistant', content: text });
 }
 
 function buildSystemPrompt(): string {
   const settings = loadSettings();
   const persona = readPersonaContent(settings.activePersona);
   return persona || '你是一个友善的桌面宠物助手。';
+}
+
+/** 发给模型的上下文：人设 + 最近 N 轮（N 在设置里，避免上下文过长，SPEC §5.4）。 */
+function buildContextMessages(): ChatMessage[] {
+  const settings = loadSettings();
+  return [
+    { role: 'system', content: buildSystemPrompt() },
+    ...recentRounds(getMessages(), settings.chatHistoryRounds),
+  ];
 }
 
 /** 从回复开头摘出情绪标签，返回去掉标签后的正文和识别到的情绪（没有就是 null）。 */
@@ -86,8 +100,8 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
     model: settings.model,
   });
 
-  history.push({ role: 'user', content: userText });
-  const messages: ChatMessage[] = [{ role: 'system', content: buildSystemPrompt() }, ...history];
+  appendMessage({ role: 'user', content: userText });
+  const messages: ChatMessage[] = buildContextMessages();
 
   handlers.onThinkingStart();
   const controller = new AbortController();
@@ -98,12 +112,12 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
       onDelta: (delta) => handlers.onDelta(delta),
       onDone: (fullText) => {
         const { text, emotion } = extractEmotion(fullText);
-        history.push({ role: 'assistant', content: text });
+        appendMessage({ role: 'assistant', content: text });
         handlers.onDone({ text, emotion });
       },
       onError: (error) => {
         // 请求失败就把这轮用户消息也撤回，避免历史里有"提问但没有回答"的断层。
-        history.pop();
+        dropLastMessage();
         handlers.onError(error.message);
       },
     },
@@ -129,8 +143,7 @@ export async function generateProactiveLine(
   });
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildSystemPrompt() },
-    ...history,
+    ...buildContextMessages(),
     { role: 'user', content: instruction },
   ];
 
@@ -147,7 +160,7 @@ export async function generateProactiveLine(
               resolve(null);
               return;
             }
-            history.push({ role: 'assistant', content: text });
+            appendMessage({ role: 'assistant', content: text });
             resolve({ text, emotion });
           },
           onError: () => resolve(null),

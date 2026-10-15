@@ -19,6 +19,7 @@ test('默认值都在合理范围内', () => {
   assert.ok(DEFAULT_SETTINGS.afkAfterMinutes >= 1);
   assert.ok(DEFAULT_SETTINGS.balanceWarnThreshold >= 0);
   assert.ok(DEFAULT_SETTINGS.proactive.avgIntervalMinutes >= 1);
+  assert.ok(DEFAULT_SETTINGS.chatHistoryRounds >= 1);
   assert.equal(DEFAULT_SETTINGS.baseURL, 'https://api.deepseek.com');
   assert.equal(DEFAULT_SETTINGS.model, 'deepseek-chat');
 });

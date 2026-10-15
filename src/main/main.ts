@@ -10,6 +10,7 @@ import { initBubble } from './bubbleWindow';
 import { initProactive, stopProactive } from './proactive';
 import { initPresence, stopPresence } from './presence';
 import { initBalance, onBalanceChange, stopBalance } from './balance';
+import { flushChatStore, initChatStore } from './chatStore';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -67,6 +68,8 @@ function initPetWindowModules(window: BrowserWindow): void {
 }
 
 app.whenReady().then(() => {
+  // 聊天记录要在任何窗口用到历史之前读回来（app ready 之后才拿得到 userData 路径）。
+  initChatStore();
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
 
@@ -113,4 +116,6 @@ app.on('will-quit', () => {
   stopProactive();
   stopPresence();
   stopBalance();
+  // 聊天记录是防抖写入的，退出前强制落盘，别丢最后几句。
+  flushChatStore();
 });
