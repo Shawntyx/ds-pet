@@ -24,10 +24,11 @@ function rollNextInterval(avgMinutes: number): number {
 }
 
 /** 把一句话送到桌宠那边：复用阶段 2 已有的"回复完播情绪表情 + 冒气泡"那条路径，
- * 主动说话和真的聊天回复在桌宠身上看起来是一样的，用户分不出也不需要分。 */
-function speak(text: string, emotion: string | null): void {
+ * 主动说话和真的聊天回复在桌宠身上看起来是一样的，用户分不出也不需要分。
+ * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。 */
+function speak(text: string, emotion: string | null, pose: string | null = null): void {
   if (!petWindowRef || petWindowRef.isDestroyed()) return;
-  petWindowRef.webContents.send('pet:reply', { text, emotion });
+  petWindowRef.webContents.send('pet:reply', { text, emotion, pose });
 }
 
 async function fireHealth(): Promise<void> {
@@ -43,7 +44,7 @@ async function fireHealth(): Promise<void> {
 
   const line = pickHealthLine(kind);
   pushAssistantLine(line.text);
-  speak(line.text, line.emotion);
+  speak(line.text, line.emotion, line.pose ?? null);
 }
 
 async function fireWindowRoast(settings: PetSettings): Promise<void> {
@@ -87,6 +88,10 @@ function tick(): void {
   }
 
   if (settings.doNotDisturb || !settings.proactive.enabled) return;
+
+  // 人不在（走开超过"趴下"的阈值）就别对着空椅子说话了：等她回来、或者下一次检查时再说。
+  // 注意这里直接 return，不推进 lastFireAt，所以她回来之后很快就会说一句，不会白等一整轮。
+  if (idleSec >= Math.max(1, settings.afkAfterMinutes) * 60) return;
 
   if (nextIntervalMs === 0) nextIntervalMs = rollNextInterval(settings.proactive.avgIntervalMinutes);
   if (Date.now() - lastFireAt < nextIntervalMs) return;

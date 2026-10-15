@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import type { PetBridge, PetMenuAction } from '../shared/types';
+import type { PetBridge, PetMenuAction, PresenceState } from '../shared/types';
 
 // 素材仓库以 git submodule 形式放在 assets/whale/assets/generated 下。
 const ASSETS_ROOT = path.join(__dirname, '../../assets/whale/assets/generated');
@@ -37,8 +37,19 @@ const bridge: PetBridge = {
   onThinkingStart(callback: () => void): void {
     ipcRenderer.on('pet:thinking-start', () => callback());
   },
-  onReply(callback: (payload: { text: string; emotion: string | null }) => void): void {
-    ipcRenderer.on('pet:reply', (_event, payload: { text: string; emotion: string | null }) => callback(payload));
+  onReply(
+    callback: (payload: { text: string; emotion: string | null; pose?: string | null }) => void
+  ): void {
+    ipcRenderer.on(
+      'pet:reply',
+      (_event, payload: { text: string; emotion: string | null; pose?: string | null }) => callback(payload)
+    );
+  },
+  onPresence(callback: (presence: PresenceState) => void): void {
+    ipcRenderer.on('pet:presence', (_event, presence: PresenceState) => callback(presence));
+  },
+  onBalanceLow(callback: (payload: { text: string }) => void): void {
+    ipcRenderer.on('pet:balance-low', (_event, payload: { text: string }) => callback(payload));
   },
   showBubble(text: string): void {
     ipcRenderer.send('pet:show-bubble', text);

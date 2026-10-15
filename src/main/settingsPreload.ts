@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { SettingsBridge, SettingsData } from '../shared/types';
+import type { BalanceView, SettingsBridge, SettingsData } from '../shared/types';
 
 const bridge: SettingsBridge = {
   load(): Promise<SettingsData> {
@@ -10,6 +10,9 @@ const bridge: SettingsBridge = {
   },
   openPersonaFile(): void {
     ipcRenderer.send('settings:open-persona-file');
+  },
+  refreshBalance(): Promise<BalanceView> {
+    return ipcRenderer.invoke('settings:refresh-balance');
   },
 };
 

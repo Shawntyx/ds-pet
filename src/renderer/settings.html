@@ -35,16 +35,32 @@
     </section>
 
     <section>
-      <h2>快捷键</h2>
+      <h2>快捷键与待机</h2>
       <label>
         隐藏/召唤
         <input id="toggleShortcut" type="text" placeholder="例如 Ctrl+Alt+W" />
       </label>
+      <label>
+        无操作多少分钟后趴下（分钟）
+        <input id="afkAfterMinutes" type="number" min="1" step="1" />
+      </label>
+      <p class="hint">这段时间没有键盘鼠标操作她就趴着（23:00–6:00 换成坐着睡的姿势），你一动手她就醒过来打招呼。</p>
+    </section>
+
+    <section>
+      <h2>账户余额</h2>
+      <p class="hint" id="balanceText">还没查询过</p>
+      <button type="button" id="refreshBalance">立即查询</button>
+      <label>
+        低于多少时提醒（0 = 不提醒）
+        <input id="balanceWarnThreshold" type="number" min="0" step="1" />
+      </label>
+      <p class="hint">只有 DeepSeek 官方接口（/user/balance）能查，换成别的兼容服务会显示"不支持"。启动查一次，之后每 6 小时一次；余额从够用变成不足时她会冒个气泡提醒一下。</p>
     </section>
 
     <section>
       <h2>主动说话</h2>
-      <p class="hint">勿扰模式开启时完全不说话，跟这里的开关无关；勿扰在桌宠右键菜单或托盘菜单里切换。</p>
+      <p class="hint">勿扰模式开启时完全不说话，跟这里的开关无关；勿扰在桌宠右键菜单或托盘菜单里切换。你离开电脑（超过上面那个分钟数）时她也不会自言自语。</p>
       <label class="checkbox"><input id="proactiveEnabled" type="checkbox" /> 启用主动说话</label>
       <label class="checkbox"><input id="healthReminder" type="checkbox" /> 久坐/喝水/深夜提醒</label>
       <label class="checkbox"><input id="windowTitleRoast" type="checkbox" /> 窗口标题吐槽</label>

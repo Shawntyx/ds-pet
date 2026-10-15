@@ -2,12 +2,14 @@ import { app, BrowserWindow, screen } from 'electron';
 import * as path from 'path';
 import { loadSettings } from './config';
 import { registerIpcHandlers } from './ipc';
-import { createTray } from './tray';
+import { createTray, refreshTrayMenu } from './tray';
 import { initContextMenu } from './menuWindow';
 import { initChat } from './chatWindow';
 import { initSettings } from './settingsWindow';
 import { initBubble } from './bubbleWindow';
 import { initProactive, stopProactive } from './proactive';
+import { initPresence, stopPresence } from './presence';
+import { initBalance, onBalanceChange, stopBalance } from './balance';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
@@ -57,6 +59,13 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
+/** 依赖桌宠窗口的那几个模块（主动说话/空闲姿势/余额提醒）统一在这里启动，activate 重建窗口时也要再跑一遍。 */
+function initPetWindowModules(window: BrowserWindow): void {
+  initProactive(window);
+  initPresence(window);
+  initBalance(window);
+}
+
 app.whenReady().then(() => {
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
@@ -78,7 +87,9 @@ app.whenReady().then(() => {
   initChat(mainWindow);
   initSettings(mainWindow, setVisible);
   initBubble(mainWindow);
-  initProactive(mainWindow);
+  initPetWindowModules(mainWindow);
+  // 余额查完/查失败后重画托盘菜单，让那一行数字跟着更新。
+  onBalanceChange(refreshTrayMenu);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -88,7 +99,7 @@ app.whenReady().then(() => {
       initChat(mainWindow);
       initSettings(mainWindow, setVisible);
       initBubble(mainWindow);
-      initProactive(mainWindow);
+      initPetWindowModules(mainWindow);
     }
   });
 });
@@ -100,4 +111,6 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   unregisterAllShortcuts();
   stopProactive();
+  stopPresence();
+  stopBalance();
 });

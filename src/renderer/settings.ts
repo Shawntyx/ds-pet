@@ -11,6 +11,18 @@ interface ProactiveSettingsView {
   titleFilterWords: string;
 }
 
+interface BalanceViewView {
+  ok: boolean;
+  supported: boolean;
+  currency: string | null;
+  total: number | null;
+  granted: number | null;
+  toppedUp: number | null;
+  fetchedAt: number | null;
+  error: string | null;
+  low: boolean;
+}
+
 interface SettingsDataView {
   baseURL: string;
   model: string;
@@ -18,6 +30,9 @@ interface SettingsDataView {
   hasApiKey: boolean;
   activePersona: string;
   personas: string[];
+  afkAfterMinutes: number;
+  balanceWarnThreshold: number;
+  balance: BalanceViewView;
   proactive: ProactiveSettingsView;
 }
 
@@ -28,6 +43,7 @@ interface Window {
       data: Partial<SettingsDataView> & { apiKey?: string }
     ): Promise<{ ok: boolean; error?: string }>;
     openPersonaFile(): void;
+    refreshBalance(): Promise<BalanceViewView>;
   };
 }
 
@@ -40,6 +56,10 @@ interface Window {
   const personaEl = document.getElementById('persona') as HTMLSelectElement;
   const openPersonaFileBtn = document.getElementById('openPersonaFile') as HTMLButtonElement;
   const toggleShortcutEl = document.getElementById('toggleShortcut') as HTMLInputElement;
+  const afkAfterMinutesEl = document.getElementById('afkAfterMinutes') as HTMLInputElement;
+  const balanceTextEl = document.getElementById('balanceText') as HTMLParagraphElement;
+  const refreshBalanceBtn = document.getElementById('refreshBalance') as HTMLButtonElement;
+  const balanceWarnThresholdEl = document.getElementById('balanceWarnThreshold') as HTMLInputElement;
   const proactiveEnabledEl = document.getElementById('proactiveEnabled') as HTMLInputElement;
   const healthReminderEl = document.getElementById('healthReminder') as HTMLInputElement;
   const windowTitleRoastEl = document.getElementById('windowTitleRoast') as HTMLInputElement;
@@ -48,6 +68,34 @@ interface Window {
   const titleFilterWordsEl = document.getElementById('titleFilterWords') as HTMLTextAreaElement;
   const statusEl = document.getElementById('status') as HTMLDivElement;
 
+  function currencySymbol(currency: string | null): string {
+    return currency === 'USD' ? '$' : '¥';
+  }
+
+  /** "3 分钟前 / 2 小时前"这种，比直接甩一个时间戳好读。 */
+  function describeAge(fetchedAt: number): string {
+    const minutes = Math.floor((Date.now() - fetchedAt) / 60_000);
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return `${minutes} 分钟前`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    return `${Math.floor(hours / 24)} 天前`;
+  }
+
+  function renderBalance(view: BalanceViewView): void {
+    const parts: string[] = [];
+    if (view.total !== null) {
+      const symbol = currencySymbol(view.currency);
+      parts.push(`当前余额 ${symbol}${view.total.toFixed(2)}`);
+      if (view.toppedUp !== null) parts.push(`充值 ${symbol}${view.toppedUp.toFixed(2)}`);
+      if (view.granted !== null) parts.push(`赠金 ${symbol}${view.granted.toFixed(2)}`);
+      if (view.fetchedAt) parts.push(`${describeAge(view.fetchedAt)}查的`);
+    }
+    if (view.error) parts.push(view.error);
+    if (view.low) parts.push('⚠️ 已低于提醒阈值');
+    balanceTextEl.textContent = parts.length > 0 ? parts.join(' · ') : '还没查询过';
+  }
+
   function fillForm(data: SettingsDataView): void {
     apiKeyHintEl.textContent = data.hasApiKey
       ? '已设置（留空保存 = 不修改；输入新的会覆盖旧的）'
@@ -55,6 +103,9 @@ interface Window {
     baseURLEl.value = data.baseURL;
     modelEl.value = data.model;
     toggleShortcutEl.value = data.toggleShortcut;
+    afkAfterMinutesEl.value = String(data.afkAfterMinutes);
+    balanceWarnThresholdEl.value = String(data.balanceWarnThreshold);
+    renderBalance(data.balance);
 
     personaEl.innerHTML = '';
     for (const name of data.personas) {
@@ -77,6 +128,17 @@ interface Window {
     window.settingsAPI.openPersonaFile();
   });
 
+  // 手动查询余额：只读，不写设置，所以不用点保存。
+  refreshBalanceBtn.addEventListener('click', async () => {
+    refreshBalanceBtn.disabled = true;
+    balanceTextEl.textContent = '查询中…';
+    try {
+      renderBalance(await window.settingsAPI.refreshBalance());
+    } finally {
+      refreshBalanceBtn.disabled = false;
+    }
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     statusEl.textContent = '保存中…';
@@ -87,6 +149,8 @@ interface Window {
       model: modelEl.value.trim(),
       toggleShortcut: toggleShortcutEl.value.trim(),
       activePersona: personaEl.value,
+      afkAfterMinutes: Math.max(1, Number(afkAfterMinutesEl.value) || 3),
+      balanceWarnThreshold: Math.max(0, Number(balanceWarnThresholdEl.value) || 0),
       proactive: {
         enabled: proactiveEnabledEl.checked,
         healthReminder: healthReminderEl.checked,

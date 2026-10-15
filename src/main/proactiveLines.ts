@@ -4,6 +4,8 @@
 export interface ProactiveLine {
   text: string;
   emotion: string | null;
+  /** 可选：整张姿势名（如深夜提醒的 'night'），有就优先于 emotion（见 ASSETS.md §1）。 */
+  pose?: string;
 }
 
 const SITTING_LINES: ProactiveLine[] = [
@@ -18,10 +20,11 @@ const WATER_LINES: ProactiveLine[] = [
   { text: '补水时间到，喝口水再继续吧。', emotion: 'happy' },
 ];
 
+// 深夜提醒统一用 night 姿势（揉眼睛、头顶月亮），比只换个表情更贴题。
 const LATE_NIGHT_LINES: ProactiveLine[] = [
-  { text: '都几点了还不睡？明天起不来可别怪我没提醒你哦。', emotion: 'angry' },
-  { text: '夜深了，早点休息吧，我会在这里守着的。', emotion: 'love' },
-  { text: '再不睡的话，明天一整天都要没精神咯，早点睡嘛。', emotion: 'shy' },
+  { text: '都几点了还不睡？明天起不来可别怪我没提醒你哦。', emotion: 'angry', pose: 'night' },
+  { text: '夜深了，早点休息吧，我会在这里守着的。', emotion: 'love', pose: 'night' },
+  { text: '再不睡的话，明天一整天都要没精神咯，早点睡嘛。', emotion: 'shy', pose: 'night' },
 ];
 
 const PHILOSOPHICAL_QUESTIONS: string[] = [

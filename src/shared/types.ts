@@ -12,6 +12,10 @@ export type PetState =
   | 'pokeBelly'
   | 'afk';
 
+/** 主进程按系统空闲时间判断出来的"人在不在"：active=在用电脑，afk=走开了，sleep=走开且是深夜。
+ * （渲染进程 pet.ts 里有同名的一份，因为渲染脚本是全局脚本、不能 import 主进程模块，改的时候两边都要改。） */
+export type PresenceState = 'active' | 'afk' | 'sleep';
+
 /** 互动区域：相对窗口宽高的比例矩形（0~1），方便窗口尺寸变化时跟着缩放。 */
 export interface ZoneRect {
   x: number;
@@ -38,6 +42,24 @@ export interface ProactiveSettings {
   titleFilterWords: string;
 }
 
+/** 余额查询结果快照。主进程持有，设置页和托盘菜单都只读这一份。 */
+export interface BalanceView {
+  /** 是否成功查到过余额 */
+  ok: boolean;
+  /** 服务端是否支持余额查询接口（换非 DeepSeek 的兼容服务会 fallback 成 false） */
+  supported: boolean;
+  currency: string | null;
+  total: number | null;
+  granted: number | null;
+  toppedUp: number | null;
+  /** 最近一次"成功"查询的时间（epoch ms），从没成功过就是 null */
+  fetchedAt: number | null;
+  /** 最近一次查询失败的原因；成功后清成 null */
+  error: string | null;
+  /** 当前余额是否低于设置的提醒阈值 */
+  low: boolean;
+}
+
 export interface PetSettings {
   /** 显示尺寸（正方形窗口边长，像素） */
   spriteSize: number;
@@ -55,6 +77,10 @@ export interface PetSettings {
   model: string;
   /** 当前使用的人设文件名（相对 personas 目录），如 'default.md' */
   activePersona: string;
+  /** 系统空闲多少分钟后她趴下/睡着（ASSETS.md §1 的 afk/sleep 姿势） */
+  afkAfterMinutes: number;
+  /** 余额低于这个数值就提醒一次（切 balance-low 姿势 + 气泡）；<=0 表示不提醒 */
+  balanceWarnThreshold: number;
   proactive: ProactiveSettings;
 }
 
@@ -71,6 +97,7 @@ export const DEFAULT_PROACTIVE_SETTINGS: ProactiveSettings = {
   healthReminder: true,
   windowTitleRoast: true,
   randomQuestion: true,
+  // 用户手动调的 10 分钟（SPEC 里 20–40 分钟只是"默认较低"的示例，不是硬要求），别改回去。
   avgIntervalMinutes: 10,
   titleFilterWords: '',
 };
@@ -84,6 +111,8 @@ export const DEFAULT_SETTINGS: PetSettings = {
   baseURL: 'https://api.deepseek.com',
   model: 'deepseek-chat',
   activePersona: 'default.md',
+  afkAfterMinutes: 3,
+  balanceWarnThreshold: 5,
   proactive: DEFAULT_PROACTIVE_SETTINGS,
 };
 
@@ -106,8 +135,13 @@ export interface PetBridge {
   onShown(callback: () => void): void;
   /** 聊天面板发消息后、模型第一个 token 回来之前，切到"思考中"姿势。 */
   onThinkingStart(callback: () => void): void;
-  /** 模型回复完了（或聊天面板关闭时），播情绪姿势 + 气泡显示这句话。 */
-  onReply(callback: (payload: { text: string; emotion: string | null }) => void): void;
+  /** 模型回复完了（或聊天面板关闭时），播情绪姿势 + 气泡显示这句话。
+   * 主动说话（深夜提醒/余额提醒）会额外带上 pose，指定整张姿势，优先于 emotion。 */
+  onReply(callback: (payload: { text: string; emotion: string | null; pose?: string | null }) => void): void;
+  /** 用户走开/回来了，换 afk/sleep 姿势或醒过来。 */
+  onPresence(callback: (presence: PresenceState) => void): void;
+  /** 余额低于阈值时提醒一次。 */
+  onBalanceLow(callback: (payload: { text: string }) => void): void;
   /** 在桌宠头上方弹一个气泡（独立小窗口，不是画在桌宠窗口里——那个窗口没地方放气泡）。 */
   showBubble(text: string): void;
 }
@@ -141,6 +175,10 @@ export interface SettingsData {
   hasApiKey: boolean;
   activePersona: string;
   personas: string[];
+  afkAfterMinutes: number;
+  balanceWarnThreshold: number;
+  /** 余额快照：设置页只读显示，点"立即查询"会触发主进程重新查一次 */
+  balance: BalanceView;
   proactive: ProactiveSettings;
 }
 
@@ -149,4 +187,5 @@ export interface SettingsBridge {
   load(): Promise<SettingsData>;
   save(data: Partial<SettingsData> & { apiKey?: string }): Promise<{ ok: boolean; error?: string }>;
   openPersonaFile(): void;
+  refreshBalance(): Promise<BalanceView>;
 }
