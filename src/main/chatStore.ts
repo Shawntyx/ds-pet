@@ -66,7 +66,25 @@ export function recentRounds(list: ChatMessage[], maxRounds: number): ChatMessag
 /** 启动时调一次（要在 app ready 之后，因为要拿 userData 路径）。 */
 export function initChatStore(): void {
   initialized = true;
-  messages = readStoredMessages();
+  const loaded = readStoredMessages();
+  const pruned = pruneIncompleteTail(loaded);
+  messages = pruned;
+  if (pruned.length !== loaded.length) {
+    // 上次是崩溃/强退的：末尾那条提问没有回答，留着会让面板显示一条永远等不到回复的消息，
+    // 也会被当成上下文发给模型。直接清掉。
+    console.log(`[whale-pet] 清掉了 ${loaded.length - pruned.length} 条没有回答的提问`);
+    scheduleSave();
+  }
+}
+
+/**
+ * 去掉末尾"没有回答的提问"（纯函数，方便测）。
+ * 正常流程下请求失败会主动撤回、用户停止也会撤回，所以只有进程被杀这种情况会留下它。
+ */
+export function pruneIncompleteTail(list: ChatMessage[]): ChatMessage[] {
+  const out = [...list];
+  while (out.length > 0 && out[out.length - 1].role === 'user') out.pop();
+  return out;
 }
 
 export function getMessages(): ChatMessage[] {

@@ -5,6 +5,7 @@ import { listPersonas, personaFilePath } from './persona';
 import { apiKeyStatus, describeApiKeyStatus, hasApiKey, saveApiKey } from './secrets';
 import { refreshTrayMenu } from './tray';
 import { getBalanceView, refreshBalance } from './balance';
+import { sendToWindow } from './safeSend';
 import { clearMessages, flushChatStore, messageCount } from './chatStore';
 import {
   clearFacts,
@@ -163,7 +164,7 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
     const cleared = clearMessages();
     flushChatStore();
     // 用扫帚姿势收个尾（ASSETS.md §6 建议的用法）。
-    petWindowRef?.webContents.send('pet:reply', {
+    sendToWindow(petWindowRef, 'pet:reply', {
       text: '聊天记录都擦干净啦～',
       emotion: null,
       pose: 'sweep',
@@ -209,7 +210,7 @@ export function initSettings(petWindow: BrowserWindow, setVisible: (visible: boo
 
     const cleared = clearFacts();
     flushMemoryStore();
-    petWindowRef?.webContents.send('pet:reply', {
+    sendToWindow(petWindowRef, 'pet:reply', {
       text: '唔…我把记的事都忘掉了，我们重新认识一下吧？',
       emotion: null,
       pose: 'sweep',

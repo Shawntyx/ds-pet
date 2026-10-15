@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { capMessages, recentRounds, MAX_STORED_MESSAGES } = require('../dist/main/chatStore');
+const { capMessages, recentRounds, pruneIncompleteTail, MAX_STORED_MESSAGES } = require('../dist/main/chatStore');
 
 const u = (text) => ({ role: 'user', content: text });
 const a = (text) => ({ role: 'assistant', content: text });
@@ -59,4 +59,25 @@ test('空历史不会炸', () => {
 
 test('上限常量是正数（防止有人手滑改成 0）', () => {
   assert.ok(MAX_STORED_MESSAGES >= 100);
+});
+
+test('pruneIncompleteTail 去掉末尾没有回答的提问', () => {
+  // 崩溃/强退留下的：最后一条是 user，没有对应的回复
+  const list = [u('1'), a('1'), u('这句没等到回复')];
+  assert.deepEqual(pruneIncompleteTail(list), [u('1'), a('1')]);
+});
+
+test('pruneIncompleteTail 连续几条孤立的提问都清掉', () => {
+  const list = [u('1'), a('1'), u('2'), u('3')];
+  assert.deepEqual(pruneIncompleteTail(list), [u('1'), a('1')]);
+});
+
+test('pruneIncompleteTail 正常结尾（回复在最后）不动它', () => {
+  const list = [u('1'), a('1')];
+  assert.deepEqual(pruneIncompleteTail(list), list);
+});
+
+test('pruneIncompleteTail 对空数组和纯提问历史都安全', () => {
+  assert.deepEqual(pruneIncompleteTail([]), []);
+  assert.deepEqual(pruneIncompleteTail([u('1')]), []);
 });

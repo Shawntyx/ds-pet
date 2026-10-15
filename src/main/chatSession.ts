@@ -2,7 +2,7 @@ import { createOpenAICompatibleProvider } from '../core/providers/openaiCompatib
 import type { ChatMessage } from '../core/providers/types';
 import { loadSettings } from './config';
 import { readPersonaContent } from './persona';
-import { loadApiKey } from './secrets';
+import { apiKeyStatus, loadApiKey } from './secrets';
 import {
   appendMessage,
   clearMessages,
@@ -65,7 +65,9 @@ function buildContextMessages(): ChatMessage[] {
   ];
 }
 
-/** 从回复开头摘出情绪标签，返回去掉标签后的正文和识别到的情绪（不认识的标签只去掉、不当情绪）。 */
+/**
+ * 从回复开头摘出情绪标签，返回去掉标签后的正文和识别到的情绪（不认识的标签只去掉、不当情绪）。
+ */
 export function extractEmotion(text: string): { text: string; emotion: Emotion | null } {
   const found = tagAtStart(text);
   if (!found) return { text: text.trim(), emotion: null };
@@ -105,15 +107,61 @@ export interface SendHandlers {
   onThinkingStart: () => void;
   onDelta: (delta: string) => void;
   onDone: (payload: { text: string; emotion: Emotion | null }) => void;
+  /**
+   * 用户按了停止（也可能是一句话都没收到就停了，这时 payload 是 null）。
+   * 和 onError 分开：停止是用户主动行为，界面不该报错，历史也不该被当成失败撤回。
+   */
+  onStopped: (payload: { text: string; emotion: Emotion | null } | null) => void;
   onError: (message: string) => void;
 }
 
-export async function sendUserMessage(userText: string, handlers: SendHandlers): Promise<void> {
+/**
+ * 同一时刻只允许一轮用户发起的请求在飞。
+ *
+ * 面板和气泡是两个窗口，都能发消息；没有这把锁的话两边可以同时发，历史里两条提问交错，
+ * 记忆提取也可能拿到半截对话。锁住之后第二个发送者会收到一句客气的提示。
+ */
+let inflight: { controller: AbortController; cancelled: boolean; received: string } | null = null;
+
+export function isChatBusy(): boolean {
+  return inflight !== null;
+}
+
+/** 用户按"停止"：中断当前请求。返回 false 表示本来就没有请求在跑。 */
+export function cancelCurrentRequest(): boolean {
+  if (!inflight) return false;
+  inflight.cancelled = true;
+  inflight.controller.abort();
+  return true;
+}
+
+function resolveApiKey(): { apiKey: string } | { error: string } {
+  const status = apiKeyStatus();
+  if (status.state === 'missing') {
+    return { error: '还没有设置 API Key，去设置里填一下吧。' };
+  }
+  if (status.state === 'unreadable') {
+    return {
+      error: `本机保存的 API Key 读不出来了（${status.reason ?? '原因未知'}），请在设置里重新填一次。`,
+    };
+  }
   const apiKey = loadApiKey();
-  if (!apiKey) {
-    handlers.onError('还没有设置 API Key，去设置里填一下吧。');
+  if (!apiKey) return { error: 'API Key 是空的，请在设置里重新填一次。' };
+  return { apiKey };
+}
+
+export async function sendUserMessage(userText: string, handlers: SendHandlers): Promise<void> {
+  if (inflight) {
+    handlers.onError('她还在回上一句，稍等一下再发嘛～');
     return;
   }
+  const resolved = resolveApiKey();
+  if ('error' in resolved) {
+    handlers.onError(resolved.error);
+    return;
+  }
+  const apiKey = resolved.apiKey;
+
   const settings = loadSettings();
   const provider = createOpenAICompatibleProvider({
     apiKey,
@@ -121,31 +169,51 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
     model: settings.model,
   });
 
+  const entry = { controller: new AbortController(), cancelled: false, received: '' };
+  inflight = entry;
+
   appendMessage({ role: 'user', content: userText });
   const messages: ChatMessage[] = buildContextMessages();
 
   handlers.onThinkingStart();
-  const controller = new AbortController();
 
-  await provider.streamChat(
-    messages,
-    {
-      onDelta: (delta) => handlers.onDelta(delta),
-      onDone: (fullText) => {
-        const { text, emotion } = extractEmotion(fullText);
-        appendMessage({ role: 'assistant', content: text });
-        handlers.onDone({ text, emotion });
-        // 一轮完整对话结束：攒够设置里的轮数就后台提取长期记忆（不阻塞回复显示）。
-        void noteCompletedExchange();
+  try {
+    await provider.streamChat(
+      messages,
+      {
+        onDelta: (delta) => {
+          entry.received += delta;
+          handlers.onDelta(delta);
+        },
+        onDone: (fullText) => {
+          const { text, emotion } = extractEmotion(fullText);
+          appendMessage({ role: 'assistant', content: text });
+          handlers.onDone({ text, emotion });
+        },
+        onError: (error) => {
+          if (entry.cancelled) {
+            // 用户主动停止：已经吐出来的部分留下来当这一轮的回复（还能接着聊），
+            // 一个字都没收到就把提问也撤回，不留"提问没有回答"的断层。
+            const { text, emotion } = extractEmotion(entry.received);
+            if (text) {
+              appendMessage({ role: 'assistant', content: text });
+              handlers.onStopped({ text, emotion });
+            } else {
+              dropLastMessage();
+              handlers.onStopped(null);
+            }
+            return;
+          }
+          // 真的失败了才撤回提问。
+          dropLastMessage();
+          handlers.onError(error.message);
+        },
       },
-      onError: (error) => {
-        // 请求失败就把这轮用户消息也撤回，避免历史里有"提问但没有回答"的断层。
-        dropLastMessage();
-        handlers.onError(error.message);
-      },
-    },
-    controller.signal
-  );
+      entry.controller.signal
+    );
+  } finally {
+    if (inflight === entry) inflight = null;
+  }
 }
 
 /**
@@ -156,8 +224,12 @@ export async function sendUserMessage(userText: string, handlers: SendHandlers):
 export async function generateProactiveLine(
   instruction: string
 ): Promise<{ text: string; emotion: Emotion | null } | null> {
-  const apiKey = loadApiKey();
-  if (!apiKey) return null;
+  // 用户正在聊天就别插嘴了（也别跟用户的消息抢历史顺序）。
+  if (inflight) return null;
+  const resolved = resolveApiKey();
+  if ('error' in resolved) return null;
+  const apiKey = resolved.apiKey;
+
   const settings = loadSettings();
   const provider = createOpenAICompatibleProvider({
     apiKey,

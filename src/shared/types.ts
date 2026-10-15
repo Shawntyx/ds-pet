@@ -184,8 +184,12 @@ export interface ChatMessageView {
 export interface ChatBridge {
   getHistory(): Promise<ChatMessageView[]>;
   sendMessage(text: string): void;
+  /** 用户按"停止"：中断正在生成的回复（已经吐出来的部分会留在记录里） */
+  cancel(): void;
   onDelta(callback: (delta: string) => void): void;
   onDone(callback: () => void): void;
+  /** 用户主动停止；payload 为 null 表示一个字都没收到，那条提问也被撤回了 */
+  onStopped(callback: (payload: { text: string } | null) => void): void;
   onError(callback: (message: string) => void): void;
 }
 

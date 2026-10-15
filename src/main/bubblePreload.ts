@@ -13,10 +13,16 @@ contextBridge.exposeInMainWorld('bubbleAPI', {
   onDone(callback: () => void): void {
     ipcRenderer.on('bubble:done', () => callback());
   },
+  onStopped(callback: (payload: { text: string } | null) => void): void {
+    ipcRenderer.on('bubble:stopped', (_event, payload: { text: string } | null) => callback(payload));
+  },
   onError(callback: (message: string) => void): void {
     ipcRenderer.on('bubble:error', (_event, message: string) => callback(message));
   },
   openChat(): void {
     ipcRenderer.send('bubble:open-chat');
+  },
+  close(): void {
+    ipcRenderer.send('bubble:close');
   },
 });

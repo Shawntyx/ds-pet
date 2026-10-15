@@ -6,6 +6,7 @@ import { showChatWindow } from './chatWindow';
 import { showSettingsWindow } from './settingsWindow';
 import { petAnchorRect } from './petAnchor';
 import { placeSidePanel } from './popupPlacement';
+import { sendToWindow } from './safeSend';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
@@ -55,7 +56,7 @@ function showMenu(): void {
 
   const show = (): void => {
     if (!menuWindow) return;
-    menuWindow.webContents.send('menu:init', { doNotDisturb: loadSettings().doNotDisturb });
+    sendToWindow(menuWindow, 'menu:init', { doNotDisturb: loadSettings().doNotDisturb });
     menuWindow.show();
     menuWindow.focus();
   };
@@ -76,7 +77,7 @@ function handleAction(actionId: string): void {
   if (!petWindowRef) return;
   const petActions: PetMenuAction[] = ['feed', 'poke', 'praise'];
   if ((petActions as string[]).includes(actionId)) {
-    petWindowRef.webContents.send('pet:trigger-action', actionId as PetMenuAction);
+    sendToWindow(petWindowRef, 'pet:trigger-action', actionId as PetMenuAction);
     return;
   }
   switch (actionId) {

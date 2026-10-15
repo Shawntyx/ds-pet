@@ -16,11 +16,19 @@ html, body {
   padding: 4px;
 }
 
+/* 文字框和右上角的 × 放一个相对定位的容器里 */
+#bubbleWrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 #bubble {
   max-width: 208px;
   max-height: 76px;
   overflow: hidden;
-  padding: 8px 12px;
+  padding: 8px 14px 8px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(242, 139, 171, 0.35);
@@ -32,6 +40,30 @@ html, body {
   white-space: pre-wrap;
   word-break: break-word;
   cursor: pointer;
+}
+
+/* 主动关闭气泡的小 × ：平时低调，鼠标移上去才明显 */
+#closeBubble {
+  position: absolute;
+  top: -7px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(120, 120, 120, 0.55);
+  color: #fff;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+#closeBubble:hover {
+  opacity: 1;
+  background: #d17ea0;
 }
 
 #quickForm {
@@ -55,4 +87,10 @@ html, body {
 #quickInput:focus {
   outline: none;
   border-color: #4da3ff;
+}
+
+#quickInput:disabled {
+  background: rgba(245, 245, 245, 0.9);
+  color: #999;
+  cursor: default;
 }

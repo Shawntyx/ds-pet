@@ -1,8 +1,14 @@
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
-import { createTagStrippingRelay, getHistory, sendUserMessage } from './chatSession';
+import {
+  cancelCurrentRequest,
+  createTagStrippingRelay,
+  getHistory,
+  sendUserMessage,
+} from './chatSession';
 import { petAnchorRect } from './petAnchor';
 import { placeSidePanel } from './popupPlacement';
+import { isWindowVisible, sendToWindow } from './safeSend';
 import type { ChatMessageView } from '../shared/types';
 
 let chatWindow: BrowserWindow | null = null;
@@ -31,8 +37,9 @@ function createChatWindow(): BrowserWindow {
   win.loadFile(path.join(__dirname, '../renderer/chat.html'));
   win.on('closed', () => {
     chatWindow = null;
-    if (lastReply && petWindowRef && !petWindowRef.isDestroyed()) {
-      petWindowRef.webContents.send('pet:reply', lastReply);
+    // 关面板时如果这一轮已经回完了，就把最后一句用气泡补上。
+    if (lastReply) {
+      sendToWindow(petWindowRef, 'pet:reply', lastReply);
     }
   });
   return win;
@@ -50,7 +57,13 @@ function positionNearPet(win: BrowserWindow): void {
 
 /** 聊天面板现在是不是开着——开着的时候不再弹气泡（文本就在面板里，弹了是重复的）。 */
 export function isChatWindowOpen(): boolean {
-  return !!chatWindow && !chatWindow.isDestroyed() && chatWindow.isVisible();
+  return isWindowVisible(chatWindow);
+}
+
+/** 面板开着时跟着桌宠挪（她自己走动/被拖走的时候面板不会掉队）。 */
+function followPet(): void {
+  if (!isWindowVisible(chatWindow)) return;
+  positionNearPet(chatWindow as BrowserWindow);
 }
 
 export function showChatWindow(): void {
@@ -64,32 +77,50 @@ export function showChatWindow(): void {
 
 export function initChat(petWindow: BrowserWindow): void {
   petWindowRef = petWindow;
+  petWindow.on('move', followPet);
 
   ipcMain.removeHandler('chat:get-history');
   ipcMain.removeAllListeners('chat:send-message');
+  ipcMain.removeAllListeners('chat:cancel');
 
   ipcMain.handle('chat:get-history', () => historyView());
 
+  ipcMain.on('chat:cancel', () => {
+    cancelCurrentRequest();
+  });
+
   ipcMain.on('chat:send-message', (_event, text: string) => {
     if (typeof text !== 'string' || !text.trim()) return;
-    const win = chatWindow;
-    const relayDelta = createTagStrippingRelay((clean) => win?.webContents.send('chat:delta', clean));
+    // 这里不用捕获窗口引用去发消息：面板可能在流式过程中被关掉，
+    // 每次发送都用 sendToWindow 现查一遍窗口还在不在。
+    const relayDelta = createTagStrippingRelay((clean) =>
+      sendToWindow(chatWindow, 'chat:delta', clean)
+    );
+
     sendUserMessage(text.trim(), {
       onThinkingStart: () => {
-        petWindowRef?.webContents.send('pet:thinking-start');
+        sendToWindow(petWindowRef, 'pet:thinking-start');
       },
       onDelta: (delta) => {
         relayDelta(delta);
       },
       onDone: (payload) => {
         lastReply = payload;
-        win?.webContents.send('chat:done');
-        // 聊天面板开着的时候只让桌宠换表情，不再弹气泡（文本已经在面板里了）；
-        // 面板关掉时下面的 'closed' 回调会把最后一句用气泡补上。
-        petWindowRef?.webContents.send('pet:reply', { ...payload, bubble: false });
+        const panelOpen = isWindowVisible(chatWindow);
+        sendToWindow(chatWindow, 'chat:done');
+        // 面板还开着就只换表情（文本在面板里）；已经关掉了就改用气泡把这句话补给她，
+        // 不然"回复打到一半关掉面板"就会静悄悄地什么都没看到。
+        sendToWindow(petWindowRef, 'pet:reply', { ...payload, bubble: !panelOpen });
+      },
+      onStopped: (payload) => {
+        const panelOpen = isWindowVisible(chatWindow);
+        sendToWindow(chatWindow, 'chat:stopped', payload);
+        if (!payload) return; // 一个字都没收到，没有可显示的内容
+        lastReply = payload;
+        sendToWindow(petWindowRef, 'pet:reply', { ...payload, bubble: !panelOpen });
       },
       onError: (message) => {
-        win?.webContents.send('chat:error', message);
+        sendToWindow(chatWindow, 'chat:error', message);
       },
     });
   });

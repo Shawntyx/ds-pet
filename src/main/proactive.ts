@@ -1,10 +1,11 @@
 import { BrowserWindow, powerMonitor } from 'electron';
 import { loadSettings } from './config';
-import { generateProactiveLine, pushAssistantLine } from './chatSession';
+import { generateProactiveLine, isChatBusy, pushAssistantLine } from './chatSession';
 import { isChatWindowOpen } from './chatWindow';
 import { getActiveWindowInfo } from './activeWindow';
 import { isTitleSensitive, parseFilterWords } from './privacyFilter';
 import { pickHealthLine, pickPhilosophicalQuestion } from './proactiveLines';
+import { sendToWindow } from './safeSend';
 import type { PetSettings } from '../shared/types';
 
 const TICK_MS = 60_000; // 每分钟检查一次，够用了，不用卡得很准
@@ -29,8 +30,7 @@ function rollNextInterval(avgMinutes: number): number {
  * pose 是整张姿势（比如深夜提醒的 night），有就优先于情绪标签。
  * 聊天面板开着时不弹气泡——那句话说出口的同时它已经在面板里了，弹出来只会挡视线。 */
 function speak(text: string, emotion: string | null, pose: string | null = null): void {
-  if (!petWindowRef || petWindowRef.isDestroyed()) return;
-  petWindowRef.webContents.send('pet:reply', {
+  sendToWindow(petWindowRef, 'pet:reply', {
     text,
     emotion,
     pose,
@@ -95,6 +95,10 @@ function tick(): void {
   }
 
   if (settings.doNotDisturb || !settings.proactive.enabled) return;
+
+  // 用户正在跟她聊天：这次主动说话直接跳过，别插嘴、也别跟用户的消息抢历史顺序。
+  // 不推进 lastFireAt，所以这一轮聊完很快就轮到主动说话。
+  if (isChatBusy()) return;
 
   // 人不在（走开超过"趴下"的阈值）就别对着空椅子说话了：等她回来、或者下一次检查时再说。
   // 注意这里直接 return，不推进 lastFireAt，所以她回来之后很快就会说一句，不会白等一整轮。

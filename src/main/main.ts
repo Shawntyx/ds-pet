@@ -11,6 +11,7 @@ import { initProactive, stopProactive } from './proactive';
 import { initPresence, stopPresence } from './presence';
 import { initBalance, onBalanceChange, stopBalance } from './balance';
 import { initPetAnchor } from './petAnchor';
+import { sendToWindow } from './safeSend';
 import { flushChatStore, initChatStore } from './chatStore';
 import { flushMemoryStore, initMemoryStore } from './memory';
 import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
@@ -83,7 +84,7 @@ app.whenReady().then(() => {
     if (visible) {
       mainWindow.show();
       // 从隐藏状态召唤回来时，让她播一下打招呼动作（首次启动不用，renderer 自己的 init 会播）。
-      mainWindow.webContents.send('pet:shown');
+      sendToWindow(mainWindow, 'pet:shown');
     } else {
       mainWindow.hide();
     }
