@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
+import { whaleAssetsDir } from './paths';
 import type { PetBridge, PetMenuAction, PresenceState } from '../shared/types';
 
-// 素材仓库以 git submodule 形式放在 assets/whale/assets/generated 下。
-const ASSETS_ROOT = path.join(__dirname, '../../assets/whale/assets/generated');
+// 素材仓库以 git submodule 形式放在 assets/whale/assets/generated 下；
+// 打包后素材在 resources/whale-assets 里（见 paths.ts）。
+const ASSETS_ROOT = path.join(whaleAssetsDir(), 'assets', 'generated');
 
 const bridge: PetBridge = {
   resolveAsset(filename: string): string {

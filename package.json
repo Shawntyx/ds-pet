@@ -1,19 +1,67 @@
 {
   "name": "whale-pet",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "鲸鱼娘桌面宠物 - AI desktop pet",
   "private": true,
+  "author": "whale-pet (personal use)",
   "main": "dist/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-static.js",
     "start": "node scripts/start.js",
     "dev": "tsc -p tsconfig.json -w",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test \"tests/**/*.test.js\""
+    "test": "npm run build && node --test \"tests/**/*.test.js\"",
+    "dist:win": "node scripts/build-installer.js"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "electron": "^44.4.5",
-    "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.5.0"
+  },
+  "build": {
+    "appId": "com.whalepet.desktop",
+    "productName": "鲸鱼娘桌宠",
+    "directories": {
+      "output": "../whale-pet-release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "electronDist": "node_modules/electron/dist",
+    "extraResources": [
+      {
+        "from": "assets/whale",
+        "to": "whale-assets",
+        "filter": [
+          "**/*",
+          "!**/.git/**"
+        ]
+      },
+      {
+        "from": "persona",
+        "to": "persona"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "鲸鱼娘桌宠"
+    }
   }
 }

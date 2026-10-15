@@ -50,6 +50,27 @@ Remove-Item Env:ELECTRON_RUN_AS_NODE   # PowerShell
 # set ELECTRON_RUN_AS_NODE=           # cmd
 ```
 
+## 打包成安装包（不用终端就能启动）
+
+```bash
+node scripts/build-installer.js      # 等价于 npm run dist:win
+```
+
+产物在项目目录**旁边**的 `../whale-pet-release/`：
+
+| 文件 | 用途 |
+|---|---|
+| `鲸鱼娘桌宠 Setup 0.1.0-alpha.1.exe` | 双击安装（向导式，可选安装目录），会创建**桌面 + 开始菜单快捷方式**——以后点图标就能启动，不用终端 |
+| `win-unpacked/鲸鱼娘桌宠.exe` | 不想安装就直接跑这个（免安装版） |
+
+装完/跑起来之后，数据仍在 `%APPDATA%\whale-pet`（和开发版**同一份**），所以 API Key、设置、聊天记录、长期记忆都不会丢。
+
+**两个坑（脚本已经处理，记在这里免得以后重新踩）：**
+
+- **素材路径要分开发/打包两种环境**：打包后代码在 `app.asar` 里，而素材和人设是通过 `extraResources` 放在 asar **外面**的 `resources/whale-assets`、`resources/persona`（见 `src/main/paths.ts`）。素材连同它自己的 `LICENSE` 一起分发，满足授权要求。
+- **目录重命名 + 解压这两步容易失败**：electron-builder 解压 Electron 后要把 `win-unpacked.tmp` 改名成 `win-unpacked`，目标已存在时会 EPERM（脚本每次先清理）；另外当前工作区里"重命名目录"被一条 Windows 权限拒绝（DSH 沙箱留在工作区根目录上的 Everyone 拒绝项，非受限进程也会被拒），所以产物目录放在工作区外，并用本地已解压的 Electron（`electronDist`）跳过下载解压。
+- 应用名用 `app.setName('whale-pet')` 钉死了：安装包的产品名是中文（快捷方式显示"鲸鱼娘桌宠"），如果让它参与算数据目录，打包版就会去读一个空目录、你的 Key 会"消失"。
+
 ## 首次使用：填 API Key
 
 阶段 2 起需要接 DeepSeek（或其他 OpenAI 兼容服务）才能聊天。托盘图标右键 → 设置，或者在桌宠身上右键 → 设置，填 API Key、Base URL（默认 `https://api.deepseek.com`）、模型名（默认 `deepseek-chat`）。Key 用 Electron `safeStorage` 加密存在本机，不会进代码库或日志。
@@ -112,6 +133,7 @@ node_modules\electron\dist\electron.exe scripts\diagnose-key.js
 
 ## 当前进度
 
+- **第一版 alpha 已经打包**（`0.1.0-alpha.1`）：装完就有桌面/开始菜单快捷方式，不用再开终端跑 `npm start`。见上面「打包成安装包」。
 - 阶段 0：项目骨架（透明置顶空窗口）
 - 阶段 1：桌宠本体（显示、待机动画、拖拽抛出、摸头摸尾巴、随机走动、扒边缘探头、全局快捷键、托盘菜单、桌宠右键菜单）
 - 阶段 2：聊天与人设（DeepSeek/OpenAI 兼容 provider、聊天面板、人设文件、设置界面）

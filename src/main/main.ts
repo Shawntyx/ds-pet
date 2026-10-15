@@ -18,6 +18,12 @@ import { registerGlobalShortcuts, unregisterAllShortcuts } from './shortcuts';
 
 let mainWindow: BrowserWindow | null = null;
 
+// 固定应用名。userData 目录是按这个名字算的（%APPDATA%\whale-pet），
+// 而安装包的产品名是中文（快捷方式显示"鲸鱼娘桌宠"）——如果让它参与算 userData，
+// 打包版就会去读一个空的新目录，你的 API Key、设置、聊天记录、记忆会"凭空消失"
+// （而且会重新出现"没有 API Key"那个坑）。这里钉死，开发版和打包版共用同一份数据。
+app.setName('whale-pet');
+
 // 主进程出现未捕获异常 / 未处理的 Promise 拒绝时，Electron 默认会弹一个
 // "A JavaScript error occurred in the main process" 对话框：用户只看到一个打断他的弹窗，
 // 而我们拿不到堆栈（实测踩过一次，只能靠临时加日志才查到原因）。
@@ -83,10 +89,28 @@ function initPetWindowModules(window: BrowserWindow): void {
   initBalance(window);
 }
 
-app.whenReady().then(() => {
+if (!app.requestSingleInstanceLock()) {
+  // 装了快捷方式以后很容易被点两下：拿不到锁就直接退出，
+  // 不然会出现两只桌宠、两个托盘图标，还会互相抢全局快捷键。
+  app.quit();
+} else {
+  // 已经有一个实例在跑：把她叫出来，而不是再开一个进程。
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      sendToWindow(mainWindow, 'pet:shown');
+    }
+  });
+  app.whenReady().then(bootstrap);
+}
+
+function bootstrap(): void {
   // 聊天记录和长期记忆要在任何窗口用到之前读回来（app ready 之后才拿得到 userData 路径）。
   initChatStore();
   initMemoryStore();
+  // 打一行数据目录：排查"Key/设置/记录去哪了"这类问题时一眼就能看到，
+  // 也能确认打包版和开发版用的是同一份数据（见上面 app.setName 的说明）。
+  console.log('[whale-pet] userData:', app.getPath('userData'));
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
 
@@ -122,7 +146,7 @@ app.whenReady().then(() => {
       initPetWindowModules(mainWindow);
     }
   });
-});
+}
 
 app.on('window-all-closed', () => {
   // 托盘常驻应用：所有窗口关闭也不退出进程，退出只走托盘菜单的"退出"。

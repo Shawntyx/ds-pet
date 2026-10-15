@@ -1,16 +1,12 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import { bundledPersonaDir } from './paths';
 
 // 人设文件放在 userData/personas/ 下（不是项目目录里），这样用户改了不会被以后更新代码覆盖掉。
-// 首次启动时从项目自带的 persona/ 目录复制一份默认的过去。
+// 首次启动时从随程序分发的 persona/ 目录复制一份默认的过去。
 function personasDir(): string {
   return path.join(app.getPath('userData'), 'personas');
-}
-
-function bundledPersonaDir(): string {
-  // dist/main/persona.js -> 项目根目录/persona
-  return path.join(__dirname, '../../persona');
 }
 
 export function ensurePersonasSeeded(): void {

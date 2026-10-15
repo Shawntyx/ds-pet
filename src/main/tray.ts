@@ -3,6 +3,7 @@ import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { showSettingsWindow } from './settingsWindow';
 import { formatBalanceBrief, getBalanceView, refreshBalance } from './balance';
+import { whaleAssetsDir } from './paths';
 
 let tray: Tray | null = null;
 let onToggleVisibleRef: ((visible: boolean) => void) | null = null;
@@ -59,7 +60,8 @@ function rebuildMenu(): void {
 
 export function createTray(onToggleVisible: (visible: boolean) => void): Tray {
   onToggleVisibleRef = onToggleVisible;
-  const iconPath = path.join(__dirname, '../../assets/whale/docs/images/logo.png');
+  // 打包后素材在 resources/whale-assets 里（见 paths.ts）
+  const iconPath = path.join(whaleAssetsDir(), 'docs', 'images', 'logo.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
   tray.setToolTip('鲸鱼娘桌宠');
