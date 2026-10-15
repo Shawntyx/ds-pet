@@ -382,8 +382,12 @@ let physicsRaf = 0;
 function startThrow(vx: number, vy: number): void {
   peekToResume = null;
   setState('falling');
-  let velX = vx * 0.35; // 屏幕像素速度直接用会太夸张，做个衰减
-  let velY = vy * 0.35;
+  // 屏幕像素速度直接用会太夸张，做个衰减；再封顶一次——鼠标/触控板的一次快甩能测出
+  // 上万 px/s，实测能把她扔到屏幕上方两万像素处（然后触发下面那个"冻结"问题）。
+  const MAX_THROW_SPEED = 2600; // px/s
+  const cap = (value: number): number => Math.min(MAX_THROW_SPEED, Math.max(-MAX_THROW_SPEED, value));
+  let velX = cap(vx * 0.35);
+  let velY = cap(vy * 0.35);
   let lastT = performance.now();
   const gravity = 2200; // px/s^2
   const bounceDamping = 0.45;
@@ -395,22 +399,17 @@ function startThrow(vx: number, vy: number): void {
 
     velY += gravity * dt;
     posX = clampX(posX + velX * dt);
-    posY = posY + velY * dt;
-
-    const gy = groundY();
-    if (posY >= gy) {
-      posY = gy;
-      if (Math.abs(velY) > 60) {
-        velY = -velY * bounceDamping;
-        velX *= frictionDamping;
-      } else {
-        velY = 0;
-        velX = 0;
-      }
-    }
+    // 上下边界都在 geometry.bounceVertically 里夹（上面不夹的话她会飞出屏幕上边、
+    // 然后因为背景节流把物理循环冻住，永远停在半空——见那个函数的注释）。
+    const vertical = GEOMETRY.bounceVertically(posY + velY * dt, velY, workArea, spriteSize, bounceDamping);
+    posY = vertical.y;
+    velY = vertical.velY;
+    if (vertical.bounced) velX *= frictionDamping;
+    if (vertical.resting) velX = 0;
 
     window.petAPI.setWindowPosition(posX, posY);
 
+    const gy = groundY();
     if (posY >= gy && Math.abs(velY) < 5 && Math.abs(velX) < 5) {
       posY = gy;
       window.petAPI.setWindowPosition(posX, posY);

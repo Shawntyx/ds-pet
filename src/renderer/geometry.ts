@@ -65,8 +65,7 @@ const GEOMETRY = {
     return { left: (boxW - width) / 2, top: (boxH - height) / 2, width, height, scale };
   },
 
-  /** 贴不贴着左/右边缘，用于判断要不要探头。不是边缘返回 null。 */
-  edgeSideAt(
+  /** 贴不贴着左/右边缘，用于判断要不要探头。不是边缘返回 null。 */  edgeSideAt(
     x: number,
     workArea: GeometryRect,
     spriteSize: number,
@@ -77,8 +76,7 @@ const GEOMETRY = {
     return null;
   },
 
-  /** ASSETS.md §0：先匹配尾巴，再匹配肚子，都不命中算头——所以这里永远有返回值，不会是 null。 */
-  zoneAt(
+  /** ASSETS.md §0：先匹配尾巴，再匹配肚子，都不命中算头——所以这里永远有返回值，不会是 null。 */  zoneAt(
     clientX: number,
     clientY: number,
     spriteSize: number,
@@ -104,6 +102,41 @@ const GEOMETRY = {
       x: (clientX - spriteSize / 2) / homeScale + spriteSize / 2,
       y: (clientY - spriteSize * (1 - homeScale)) / homeScale,
     };
+  },
+
+  /**
+   * 抛出物理的竖直碰撞：**上下都要夹**。
+   *
+   * 只夹地面是不行的：往上甩会让窗口整个飞出屏幕上边，而窗口完全离开可视区域后
+   * Chromium 会把 requestAnimationFrame 节流掉（背景节流），物理循环就停在半空——
+   * 用户看到的是"把她往上甩，她飞出去再也不掉下来"。实测踩到过（y 到了 -20653，
+   * 之后又一次停在 y=-263 不动）。所以上面也照样夹住并反弹。
+   *
+   * 返回夹取后的 y 和速度；bounced 表示发生了真正的反弹（要跟着摩擦），
+   * resting 表示速度太小、就地停住（调用方可以把水平速度也归零）。
+   */
+  bounceVertically(
+    y: number,
+    velY: number,
+    workArea: GeometryRect,
+    spriteSize: number,
+    damping: number,
+    minBounceSpeed = 60
+  ): { y: number; velY: number; bounced: boolean; resting: boolean } {
+    if (y < workArea.y) {
+      if (velY < -minBounceSpeed) {
+        return { y: workArea.y, velY: -velY * damping, bounced: true, resting: false };
+      }
+      return { y: workArea.y, velY: 0, bounced: false, resting: true };
+    }
+    const ground = GEOMETRY.groundY(workArea, spriteSize);
+    if (y > ground) {
+      if (velY > minBounceSpeed) {
+        return { y: ground, velY: -velY * damping, bounced: true, resting: false };
+      }
+      return { y: ground, velY: 0, bounced: false, resting: true };
+    }
+    return { y, velY, bounced: false, resting: false };
   },
 };
 

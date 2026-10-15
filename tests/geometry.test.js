@@ -86,3 +86,41 @@ test('peekHome 的坐标反算把"底部中间"当成不动点', () => {
   // 窗口顶部那一块在缩小后已经跑到画面外了（算出来是负数 → 不响应鼠标）
   assert.ok(GEOMETRY.peekHomeUntransform(bottomCenterX, 0, spriteSize, padding.homeScale).y < 0);
 });
+
+test('bounceVertically：往上甩一律夹在屏幕内（回归：飞出屏幕上边会卡住）', () => {
+  const gy = GEOMETRY.groundY(workArea, spriteSize);
+  // 极端向上速度：必须被夹在 workArea.y，并反弹向下
+  const fast = GEOMETRY.bounceVertically(-20000, -20000, workArea, spriteSize, 0.45);
+  assert.equal(fast.y, workArea.y);
+  assert.ok(fast.velY > 0, '应该反弹向下');
+  assert.equal(fast.bounced, true);
+  // 副屏（workArea.y 和 x 都有偏移）也要按工作区顶部夹
+  const shifted = { x: -1920, y: -200, width: 1920, height: 1040 };
+  const onShifted = GEOMETRY.bounceVertically(-9999, -5000, shifted, spriteSize, 0.45);
+  assert.equal(onShifted.y, -200);
+  // 向上速度很小时就地停住
+  const slow = GEOMETRY.bounceVertically(-1, -20, workArea, spriteSize, 0.45);
+  assert.equal(slow.y, workArea.y);
+  assert.equal(slow.velY, 0);
+  assert.equal(slow.resting, true);
+});
+
+test('bounceVertically：地面照样夹住并反弹', () => {
+  const gy = GEOMETRY.groundY(workArea, spriteSize);
+  const hit = GEOMETRY.bounceVertically(gy + 50, 900, workArea, spriteSize, 0.45);
+  assert.equal(hit.y, gy);
+  assert.ok(hit.velY < 0, '应该弹起来');
+  assert.equal(hit.bounced, true);
+  const stop = GEOMETRY.bounceVertically(gy + 3, 10, workArea, spriteSize, 0.45);
+  assert.equal(stop.y, gy);
+  assert.equal(stop.velY, 0);
+  assert.equal(stop.resting, true);
+});
+
+test('bounceVertically：空中的位置和速度原样保留', () => {
+  const mid = GEOMETRY.bounceVertically(300, 500, workArea, spriteSize, 0.45);
+  assert.equal(mid.y, 300);
+  assert.equal(mid.velY, 500);
+  assert.equal(mid.bounced, false);
+  assert.equal(mid.resting, false);
+});

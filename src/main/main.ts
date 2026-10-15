@@ -62,6 +62,10 @@ function createWindow(): BrowserWindow {
       // 只放行几个内置模块，没有 path，所以这里关掉 preload 的沙盒。
       // 渲染进程本身仍然没有 nodeIntegration，安全边界没变。
       sandbox: false,
+      // 桌面宠物必须一直在动（待机动画、走路、抛出物理都跑在 requestAnimationFrame 上）。
+      // 默认的背景节流会在窗口被完全遮挡/移出可视区域时把 rAF 掐掉——实测踩到过：
+      // 把她往上甩出屏幕后物理循环直接冻住，她永远停在半空（见 pet.ts startThrow 的上边界处理）。
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
