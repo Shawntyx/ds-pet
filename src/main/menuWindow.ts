@@ -12,11 +12,12 @@ import { setWindowRect } from './windowRect';
 import type { PetMenuAction } from '../shared/types';
 
 const MENU_WIDTH = 168;
-// 8 个菜单项 + 1 条分隔线 + 容器内边距；加一项就要往上加高度，不然最后一项会被裁掉。
-const MENU_HEIGHT = 356;
+// 9 个菜单项 + 2 条分隔线 + 容器内边距；加一项就要往上加高度，不然最后一项会被裁掉。
+const MENU_HEIGHT = 390;
 
 let menuWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
+let recreateWindowRef: (() => void) | null = null;
 let setVisibleRef: ((visible: boolean) => void) | null = null;
 /** 已经挂过 'move' 监听的窗口，避免 initContextMenu 被反复调用时重复挂（会一次移动触发多次摆位）。 */
 let moveListenerWindow: BrowserWindow | null = null;
@@ -117,12 +118,20 @@ function handleAction(actionId: string): void {
     case 'quit':
       app.quit();
       break;
+    case 'recreate':
+      recreateWindowRef?.();
+      break;
   }
 }
 
-export function initContextMenu(petWindow: BrowserWindow, setVisible: (visible: boolean) => void): void {
+export function initContextMenu(
+  petWindow: BrowserWindow,
+  setVisible: (visible: boolean) => void,
+  recreateWindow: () => void
+): void {
   petWindowRef = petWindow;
   setVisibleRef = setVisible;
+  recreateWindowRef = recreateWindow;
 
   if (moveListenerWindow !== petWindow) {
     petWindow.on('move', followPet);

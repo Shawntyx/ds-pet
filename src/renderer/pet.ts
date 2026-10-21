@@ -241,6 +241,19 @@ window.addEventListener('mousemove', (e) => {
   }
 });
 
+// 实测踩到的坑：用户同时开着另一个也用"透明穿透+转发鼠标"这套技巧的桌宠类 App（比如
+// DeepSeek Harness 的 dsh-pet），它的窗口盖到这边上面时，Windows 底层的穿透/转发状态
+// 偶尔会被弄乱——表现是点击/拖拽突然失灵，关掉对方也不会自己恢复。
+// 第一版想在主进程里定时"纠正"，结果弄巧成拙：主进程不知道鼠标此刻到底在不在角色身上，
+// 只能瞎猜一个默认值去强制覆盖，猜错的那一刻反而会把本来正常的点击（包括右键）弄坏，
+// 越修越乱。真正知道"现在该是哪个状态"的只有这里（ignoring 这个变量，根据鼠标位置实时算出来
+// 的），所以改成固定间隔把**当前已经算对的值**重新发一遍给主进程——值没变，就是单纯把 Windows
+// 那边的底层状态在拿不准的时候重新摁回正确答案，不会有猜错的风险。
+window.setInterval(() => {
+  if (pointerDown) return; // 拖拽/点击判定期间不插手，交给上面那段自己的逻辑
+  window.petAPI.setIgnoreMouseEvents(ignoring, true);
+}, 1000);
+
 window.addEventListener('mousedown', (e) => {
   if (ignoring) return; // 理论上穿透状态下不会收到 mousedown，双重保险
   if (e.button !== 0) return; // 右键留给右键菜单，不进拖拽判定

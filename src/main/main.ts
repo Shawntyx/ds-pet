@@ -82,8 +82,10 @@ function createWindow(): BrowserWindow {
   // 导致一扇肉眼看不见的窗口其实在拦鼠标。见 setVisible 里对应的开关逻辑。
   window.setIgnoreMouseEvents(true, settings.visible ? { forward: true } : undefined);
 
+  // 不能无条件 mainWindow = null：手动"重建窗口"时，新窗口早于旧窗口销毁完成就已经接管了
+  // mainWindow，旧窗口销毁后触发的这个 closed 要是不管三七二十一就置空，会把刚装好的新窗口引用冲掉。
   window.on('closed', () => {
-    mainWindow = null;
+    if (mainWindow === window) mainWindow = null;
   });
 
   return window;
@@ -144,29 +146,45 @@ function bootstrap(): void {
       `素材目录=${whaleAssetsDir()} | API Key 状态=${apiKeyStatus().state}`
   );
   mainWindow = createWindow();
-  registerIpcHandlers(mainWindow);
+  wireMainWindow(mainWindow);
 
-  createTray(setVisible);
+  createTray(setVisible, recreateMainWindow);
   registerGlobalShortcuts(mainWindow, setVisible);
-  initContextMenu(mainWindow, setVisible);
-  initChat(mainWindow);
-  initSettings(mainWindow, setVisible);
-  initBubble(mainWindow);
-  initPetWindowModules(mainWindow);
   // 余额查完/查失败后重画托盘菜单，让那一行数字跟着更新。
   onBalanceChange(refreshTrayMenu);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       mainWindow = createWindow();
-      registerIpcHandlers(mainWindow);
-      initContextMenu(mainWindow, setVisible);
-      initChat(mainWindow);
-      initSettings(mainWindow, setVisible);
-      initBubble(mainWindow);
-      initPetWindowModules(mainWindow);
+      wireMainWindow(mainWindow);
     }
   });
+}
+
+/** 新建/重建窗口后都要跑的那一串初始化，提出来给 bootstrap、'activate'、
+ *  托盘"重新创建桌宠窗口"三处共用，别每处抄一遍、改漏一处。 */
+function wireMainWindow(window: BrowserWindow): void {
+  registerIpcHandlers(window);
+  initContextMenu(window, setVisible, recreateMainWindow);
+  initChat(window);
+  initSettings(window, setVisible);
+  initBubble(window);
+  initPetWindowModules(window);
+}
+
+// 实测踩到的坑（跟上面 setVisible 注释里那个不是一回事，但现象一样：mousedown 收不到，
+// mouseup/mousemove/右键照常）：用户同时开着另一个也用"透明穿透+转发鼠标"技巧的桌宠类
+// App（dsh-pet）时，它的窗口盖到这边上面会触发；关掉对方、甚至把对方整个进程退出都不会
+// 自动恢复——但把咱们这只窗口销毁重建一个新的，立刻就好了。说明坏的状态卡在了这一个
+// 窗口实例的底层（具体是什么没查清楚，两个独立 App 都搞"透明穿透"互相干扰到这个地步，
+// 不是我们这边能单方面解决的），但只要重建窗口就能摆脱，不需要整个重启 App、不会丢
+// 设置/聊天记录/长期记忆（那些都存在别处）。托盘菜单里放一个"重新创建桌宠窗口"，
+// 中招时点一下比退出重开快得多。
+function recreateMainWindow(): void {
+  const oldWindow = mainWindow;
+  mainWindow = createWindow();
+  wireMainWindow(mainWindow);
+  if (oldWindow && !oldWindow.isDestroyed()) oldWindow.destroy();
 }
 
 app.on('window-all-closed', () => {
