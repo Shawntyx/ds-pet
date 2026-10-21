@@ -317,9 +317,49 @@ interface Window {
     }
   });
 
+  // 小圆圈 info 标记的悬浮说明：量一下图标在屏幕上的实际位置，把说明框的左右位置
+  // 夹在窗口可见范围内——图标靠边时（比如 API Key 那一行离左边缘很近）居中展开会把
+  // 说明框顶到窗口外面、看不全，这里改成按需裁到可见区域。元素是固定那几个、不会
+  // 动态增删，页面加载时绑一次就够，不用在每次 fillForm 之后重新绑。
+  function setupInfoTips(): void {
+    const bubble = document.createElement('div');
+    bubble.className = 'info-tip-bubble';
+    document.body.appendChild(bubble);
+
+    function show(trigger: Element): void {
+      const text = trigger.getAttribute('data-tip');
+      if (!text) return;
+      bubble.textContent = text;
+      bubble.style.display = 'block';
+      const margin = 8;
+      const triggerRect = trigger.getBoundingClientRect();
+      const bubbleRect = bubble.getBoundingClientRect();
+      const left = Math.max(
+        margin,
+        Math.min(
+          triggerRect.left + triggerRect.width / 2 - bubbleRect.width / 2,
+          window.innerWidth - bubbleRect.width - margin
+        )
+      );
+      bubble.style.left = `${left}px`;
+      bubble.style.top = `${triggerRect.bottom + 6}px`;
+    }
+    function hide(): void {
+      bubble.style.display = 'none';
+    }
+
+    document.querySelectorAll('.info-tip').forEach((el) => {
+      el.addEventListener('mouseenter', () => show(el));
+      el.addEventListener('mouseleave', hide);
+      el.addEventListener('focus', () => show(el));
+      el.addEventListener('blur', hide);
+    });
+  }
+
   async function init(): Promise<void> {
     const data = await window.settingsAPI.load();
     fillForm(data);
+    setupInfoTips();
   }
 
   void init();

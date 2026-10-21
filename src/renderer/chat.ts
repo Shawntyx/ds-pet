@@ -157,6 +157,43 @@ interface Window {
     setSending(false);
   });
 
+  // 小圆圈 info 标记的悬浮说明，跟设置页是同一套实现（没有共享脚本文件，各写各的）：
+  // 量一下图标在屏幕上的实际位置，把说明框的左右位置夹在窗口可见范围内，不会探出去。
+  function setupInfoTips(): void {
+    const bubble = document.createElement('div');
+    bubble.className = 'info-tip-bubble';
+    document.body.appendChild(bubble);
+
+    function show(trigger: Element): void {
+      const text = trigger.getAttribute('data-tip');
+      if (!text) return;
+      bubble.textContent = text;
+      bubble.style.display = 'block';
+      const margin = 8;
+      const triggerRect = trigger.getBoundingClientRect();
+      const bubbleRect = bubble.getBoundingClientRect();
+      const left = Math.max(
+        margin,
+        Math.min(
+          triggerRect.left + triggerRect.width / 2 - bubbleRect.width / 2,
+          window.innerWidth - bubbleRect.width - margin
+        )
+      );
+      bubble.style.left = `${left}px`;
+      bubble.style.top = `${triggerRect.bottom + 6}px`;
+    }
+    function hide(): void {
+      bubble.style.display = 'none';
+    }
+
+    document.querySelectorAll('.info-tip').forEach((el) => {
+      el.addEventListener('mouseenter', () => show(el));
+      el.addEventListener('mouseleave', hide);
+      el.addEventListener('focus', () => show(el));
+      el.addEventListener('blur', hide);
+    });
+  }
+
   async function init(): Promise<void> {
     const history = await window.chatAPI.getHistory();
     for (const m of history) {
@@ -164,6 +201,7 @@ interface Window {
       addMessage(m.role, m.content);
     }
     input.focus();
+    setupInfoTips();
   }
 
   void init();
