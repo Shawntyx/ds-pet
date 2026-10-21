@@ -54,7 +54,10 @@ function createWindow(): BrowserWindow {
     // 聊天面板（阶段 2）需要键盘输入，会用单独的可聚焦窗口；
     // 桌宠本体窗口不需要抢输入焦点，免得打断用户在别的应用里打字。
     focusable: false,
-    show: settings.visible,
+    // 窗口从创建起就一直是"显示"状态，"隐藏"靠下面的 opacity 控制，不靠真的 hide()/show()——
+    // 原因见 setVisible 那边的注释（真的 hide() 再 show() 回来，Windows 这边会有一个很难查的坑）。
+    show: true,
+    opacity: settings.visible ? 1 : 0,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -72,8 +75,12 @@ function createWindow(): BrowserWindow {
 
   window.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // 默认整窗点击穿透，渲染进程会在鼠标移到角色不透明像素上时临时关闭穿透。
-  window.setIgnoreMouseEvents(true, { forward: true });
+  // 默认整窗点击穿透。forward:true 会让窗口继续收到 mousemove 转发给渲染进程，
+  // 让它根据鼠标是不是在角色不透明像素上实时切换穿透/响应；但这只在"显示"状态下才需要——
+  // 如果一开始就是隐藏的（opacity 0），不带 forward，彻底不转发任何鼠标事件，
+  // 不然鼠标划过她原本所在的位置时，渲染进程会因为检测到"在不透明像素上"而把穿透关掉，
+  // 导致一扇肉眼看不见的窗口其实在拦鼠标。见 setVisible 里对应的开关逻辑。
+  window.setIgnoreMouseEvents(true, settings.visible ? { forward: true } : undefined);
 
   window.on('closed', () => {
     mainWindow = null;
@@ -91,18 +98,36 @@ function initPetWindowModules(window: BrowserWindow): void {
   initBalance(window);
 }
 
+// "隐藏"不走真的 window.hide()/show()——实测（见诊断日志）发现一个很难查的 Windows/Electron
+// 坑：这扇透明点击穿透窗口一旦真的 hide() 过一次，下次 show() 回来，鼠标左键按下（mousedown）
+// 会彻底收不到了（mouseup/mousemove/右键菜单都完全正常，只有 mousedown 消失），导致点击和拖拽
+// 失灵，具体是 Chromium/Windows 内部什么机制导致的没查清楚，但现象很确定、很好复现。
+// 干脆不让这个"真的从 OS 层面隐藏再显示"的转换再发生：窗口从创建起永远是 show() 状态，
+// "隐藏"改成把透明度降到 0 + 强制整窗穿透，视觉和交互上跟真隐藏没区别，但不会踩到这个坑。
+// 提到模块顶层是因为 second-instance 处理器和 bootstrap() 里的托盘/快捷键/菜单都要共用同一份逻辑。
+function setVisible(visible: boolean): void {
+  if (!mainWindow) return;
+  if (visible) {
+    // 恢复 forward 转发：渲染进程才能继续收到 mousemove，按真实鼠标位置自己切换穿透/响应。
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    mainWindow.setOpacity(1);
+    // 从隐藏状态召唤回来时，让她播一下打招呼动作（首次启动不用，renderer 自己的 init 会播）。
+    sendToWindow(mainWindow, 'pet:shown');
+  } else {
+    // 不带 forward：彻底不转发任何鼠标事件给渲染进程，不然鼠标划过她原本所在的位置时，
+    // 渲染进程会因为检测到"在不透明像素上"而把穿透关掉，导致看不见的窗口其实在拦鼠标。
+    mainWindow.setIgnoreMouseEvents(true);
+    mainWindow.setOpacity(0);
+  }
+}
+
 if (!app.requestSingleInstanceLock()) {
   // 装了快捷方式以后很容易被点两下：拿不到锁就直接退出，
   // 不然会出现两只桌宠、两个托盘图标，还会互相抢全局快捷键。
   app.quit();
 } else {
   // 已经有一个实例在跑：把她叫出来，而不是再开一个进程。
-  app.on('second-instance', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      sendToWindow(mainWindow, 'pet:shown');
-    }
-  });
+  app.on('second-instance', () => setVisible(true));
   app.whenReady().then(bootstrap);
 }
 
@@ -120,17 +145,6 @@ function bootstrap(): void {
   );
   mainWindow = createWindow();
   registerIpcHandlers(mainWindow);
-
-  const setVisible = (visible: boolean): void => {
-    if (!mainWindow) return;
-    if (visible) {
-      mainWindow.show();
-      // 从隐藏状态召唤回来时，让她播一下打招呼动作（首次启动不用，renderer 自己的 init 会播）。
-      sendToWindow(mainWindow, 'pet:shown');
-    } else {
-      mainWindow.hide();
-    }
-  };
 
   createTray(setVisible);
   registerGlobalShortcuts(mainWindow, setVisible);

@@ -334,16 +334,12 @@ window.petAPI.onTriggerAction((action) => {
 
 // 从隐藏状态召唤回来时打个招呼。
 window.petAPI.onShown(() => {
-  // 隐藏期间窗口收不到 mousemove（不在屏幕上，操作系统不会投递鼠标事件），
-  // 如果隐藏那一刻鼠标正好在她身上（ignoring=false），这个状态会一直留到再显示出来，
-  // 跟渲染进程这边的 ignoring 变量和主进程那边真实的 setIgnoreMouseEvents 状态都对不上——
-  // 表现就是显示出来之后点击/拖拽摸不到她，但右键判定走的是另一条相对独立的路径，碰巧还正常。
-  // 重新显示时强制回到"整体穿透"这个已知安全的默认值，不对的话下一次 mousemove 会自己纠正回来；
-  // 顺便清掉 pointerDown/dragging，防止任何极端情况下的拖拽状态跟着漏到这一轮。
+  // "隐藏"现在是主进程那边用 opacity 模拟的（见 main.ts 的 setVisible 注释，真的 hide()/show()
+  // 会导致 mousedown 彻底收不到），主进程显示前已经把穿透状态设对了；这里只是顺手把渲染进程自己
+  // 这份本地状态也复位一下，兜底用，防止任何极端情况下 pointerDown/dragging 跟着漏到这一轮。
   ignoring = true;
   pointerDown = false;
   dragging = false;
-  window.petAPI.setIgnoreMouseEvents(true, true);
   playTransient('greet', 1400);
 });
 
