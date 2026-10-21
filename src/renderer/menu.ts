@@ -38,7 +38,7 @@ interface MenuItemDef {
     // 点击/拖拽偶尔会被别的也用"透明穿透"技巧的桌宠类 App 搅乱，这个入口比翻系统托盘
     // 找图标更可靠——因为右键菜单这条路恰好是那种状况下还能正常用的（不受影响的是松开/
     // 右键类消息，按下才会失灵，参见 main.ts 里 recreateMainWindow 的注释）。
-    { id: 'recreate', label: '🔄 重新创建窗口（点击失灵时用）', divider: true },
+    { id: 'recreate', label: '🔄 重开（点击失灵用）', divider: true },
     { id: 'quit', label: '❌ 关闭' },
   ];
 

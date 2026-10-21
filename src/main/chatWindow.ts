@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, screen } from 'electron';
+import { BrowserWindow, ipcMain, nativeImage, screen } from 'electron';
 import * as path from 'path';
 import {
   cancelCurrentRequest,
@@ -11,7 +11,12 @@ import { placeSidePanel } from './popupPlacement';
 import { isWindowVisible, sendToWindow } from './safeSend';
 import { moveWindowTo } from './windowRect';
 import { startNewConversation } from './chatStore';
+import { whaleAssetsDir } from './paths';
 import type { ChatMessageView } from '../shared/types';
+
+// 标题栏/任务栏左上角那个图标：不设的话 Windows 会拿 Electron 自带的默认图标顶上去，
+// 跟托盘图标用的是同一张图（见 tray.ts），保持一致。
+const WINDOW_ICON = nativeImage.createFromPath(path.join(whaleAssetsDir(), 'docs', 'images', 'logo.png'));
 
 let chatWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
@@ -32,7 +37,8 @@ function createChatWindow(): BrowserWindow {
     height: 480,
     minWidth: 280,
     minHeight: 320,
-    title: '和鲸鱼娘聊天',
+    title: '和大肥鱼聊天',
+    icon: WINDOW_ICON,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

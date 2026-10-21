@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, Menu, screen } from 'electron';
 import * as path from 'path';
 import { loadSettings } from './config';
 import { registerIpcHandlers } from './ipc';
@@ -22,7 +22,7 @@ import { apiKeyStatus } from './secrets';
 let mainWindow: BrowserWindow | null = null;
 
 // 固定应用名。userData 目录是按这个名字算的（%APPDATA%\whale-pet），
-// 而安装包的产品名是中文（快捷方式显示"鲸鱼娘桌宠"）——如果让它参与算 userData，
+// 而安装包的产品名是中文（快捷方式显示"大肥鱼桌宠"）——如果让它参与算 userData，
 // 打包版就会去读一个空的新目录，你的 API Key、设置、聊天记录、记忆会"凭空消失"
 // （而且会重新出现"没有 API Key"那个坑）。这里钉死，开发版和打包版共用同一份数据。
 app.setName('whale-pet');
@@ -32,6 +32,11 @@ app.setName('whale-pet');
 // 而我们拿不到堆栈（实测踩过一次，只能靠临时加日志才查到原因）。
 // 桌面宠物是常驻程序，静默记日志比弹窗更合适：控制台一份，文件一份（打包版没有终端，只能看文件）。
 setupLogging();
+
+// 这是个单一用途的小玩具，不是文档编辑器，用不上"文件/编辑/查看/窗口"那一整条默认菜单栏
+// （聊天面板、设置窗口不设 frame:false 的话 Electron 会自动挂一条上去）。全局去掉，
+// 每个窗口都不用了，不用逐个窗口再设一遍。
+Menu.setApplicationMenu(null);
 
 function createWindow(): BrowserWindow {
   const settings = loadSettings();

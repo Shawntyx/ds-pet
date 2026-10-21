@@ -74,7 +74,7 @@ export function createTray(onToggleVisible: (visible: boolean) => void, onRecrea
   const iconPath = path.join(whaleAssetsDir(), 'docs', 'images', 'logo.png');
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
   tray = new Tray(icon);
-  tray.setToolTip('鲸鱼娘桌宠');
+  tray.setToolTip('大肥鱼桌宠');
   rebuildMenu();
   return tray;
 }

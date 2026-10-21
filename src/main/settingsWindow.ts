@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { listPersonas, personaFilePath } from './persona';
@@ -17,7 +17,12 @@ import {
   memoryFilePath,
 } from './memory';
 import { registerGlobalShortcuts } from './shortcuts';
+import { whaleAssetsDir } from './paths';
 import type { SettingsData } from '../shared/types';
+
+// 标题栏/任务栏左上角那个图标：不设的话 Windows 会拿 Electron 自带的默认图标顶上去，
+// 跟托盘图标用的是同一张图（见 tray.ts），保持一致。
+const WINDOW_ICON = nativeImage.createFromPath(path.join(whaleAssetsDir(), 'docs', 'images', 'logo.png'));
 
 let settingsWindow: BrowserWindow | null = null;
 let petWindowRef: BrowserWindow | null = null;
@@ -32,6 +37,7 @@ function createSettingsWindow(): BrowserWindow {
     minWidth: 360,
     minHeight: 420,
     title: '设置',
+    icon: WINDOW_ICON,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

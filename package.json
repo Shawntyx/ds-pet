@@ -1,7 +1,7 @@
 {
   "name": "whale-pet",
   "version": "0.1.0-alpha.3",
-  "description": "鲸鱼娘桌面宠物 - AI desktop pet",
+  "description": "大肥鱼桌面宠物 - AI desktop pet",
   "private": true,
   "license": "MIT",
   "author": "Shawntyx",
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.whalepet.desktop",
-    "productName": "鲸鱼娘桌宠",
+    "productName": "大肥鱼桌宠",
     "directories": {
       "output": "../whale-pet-release"
     },
@@ -62,7 +62,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "鲸鱼娘桌宠"
+      "shortcutName": "大肥鱼桌宠"
     }
   }
 }

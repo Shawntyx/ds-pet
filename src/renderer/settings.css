@@ -7,8 +7,30 @@ html, body {
   font-size: 13px;
 }
 
+/* 版本号钉在整页最上面，居中、两边一道金线——不是某个区块里的一条数据，
+   是这一整份设置属于哪个版本的"标题"，所以单独摆在所有 section 之外。 */
+.dash-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 10px 16px 2px;
+  font-family: var(--font-voice);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.dash-label::before,
+.dash-label::after {
+  content: "";
+  flex: 1;
+  max-width: 54px;
+  height: 1px;
+  background: var(--gold);
+}
+
 #form {
-  padding: 14px 16px 24px;
+  padding: 10px 16px 24px;
   box-sizing: border-box;
 }
 

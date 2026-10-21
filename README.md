@@ -1,4 +1,4 @@
-# 鲸鱼娘桌宠（whale-pet）
+# 大肥鱼桌宠（whale-pet）
 
 运行在 Windows 10/11 上的 AI 桌面宠物，非官方同人项目，与 DeepSeek 官方无关，仅供个人使用。
 
@@ -60,8 +60,8 @@ node scripts/build-installer.js      # 等价于 npm run dist:win
 
 | 文件 | 用途 |
 |---|---|
-| `鲸鱼娘桌宠 Setup 0.1.0-alpha.1.exe` | 双击安装（向导式，可选安装目录），会创建**桌面 + 开始菜单快捷方式**——以后点图标就能启动，不用终端 |
-| `win-unpacked/鲸鱼娘桌宠.exe` | 不想安装就直接跑这个（免安装版） |
+| `大肥鱼桌宠 Setup 0.1.0-alpha.1.exe` | 双击安装（向导式，可选安装目录），会创建**桌面 + 开始菜单快捷方式**——以后点图标就能启动，不用终端 |
+| `win-unpacked/大肥鱼桌宠.exe` | 不想安装就直接跑这个（免安装版） |
 
 装完/跑起来之后，数据仍在 `%APPDATA%\whale-pet`（和开发版**同一份**），所以 API Key、设置、聊天记录、长期记忆都不会丢。
 
@@ -85,10 +85,10 @@ node scripts/build-installer.js      # 等价于 npm run dist:win
 托盘图标也被挡住了的话：
 
 ```powershell
-taskkill /IM 鲸鱼娘桌宠.exe /F        # 开发版是 taskkill /IM electron.exe /F
+taskkill /IM 大肥鱼桌宠.exe /F        # 开发版是 taskkill /IM electron.exe /F
 ```
 
-任务管理器里结束 `鲸鱼娘桌宠`（开发版是 `electron`）进程也一样。
+任务管理器里结束 `大肥鱼桌宠`（开发版是 `electron`）进程也一样。
 
 ### 出问题看日志
 
@@ -104,7 +104,7 @@ taskkill /IM 鲸鱼娘桌宠.exe /F        # 开发版是 taskkill /IM electron.
 
 - **素材路径要分开发/打包两种环境**：打包后代码在 `app.asar` 里，而素材和人设是通过 `extraResources` 放在 asar **外面**的 `resources/whale-assets`、`resources/persona`（见 `src/main/paths.ts`）。素材连同它自己的 `LICENSE` 一起分发，满足授权要求。
 - **目录重命名 + 解压这两步容易失败**：electron-builder 解压 Electron 后要把 `win-unpacked.tmp` 改名成 `win-unpacked`，目标已存在时会 EPERM（脚本每次先清理）；另外当前工作区里"重命名目录"被一条 Windows 权限拒绝（DSH 沙箱留在工作区根目录上的 Everyone 拒绝项，非受限进程也会被拒），所以产物目录放在工作区外，并用本地已解压的 Electron（`electronDist`）跳过下载解压。
-- 应用名用 `app.setName('whale-pet')` 钉死了：安装包的产品名是中文（快捷方式显示"鲸鱼娘桌宠"），如果让它参与算数据目录，打包版就会去读一个空目录、你的 Key 会"消失"。
+- 应用名用 `app.setName('whale-pet')` 钉死了：安装包的产品名是中文（快捷方式显示"大肥鱼桌宠"），如果让它参与算数据目录，打包版就会去读一个空目录、你的 Key 会"消失"。
 
 ## 首次使用：填 API Key
 

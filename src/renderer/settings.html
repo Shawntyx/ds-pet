@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
+  <div id="pageVersion" class="dash-label"><span id="appVersion"></span></div>
   <form id="form">
     <section>
       <h2>模型</h2>
@@ -19,10 +20,7 @@
         <span class="info-tip" id="apiKeyHint" tabindex="0">i</span>
       </div>
       <p class="hint" id="userDataHint"></p>
-      <div class="row">
-        <button type="button" id="openDataDir">打开数据目录</button>
-        <span class="hint" id="appVersion"></span>
-      </div>
+      <button type="button" id="openDataDir">打开数据目录</button>
       <label>
         Base URL
         <input id="baseURL" type="text" />
@@ -46,8 +44,14 @@
     </section>
 
     <section>
-      <h2>长期记忆</h2>
-      <label class="checkbox"><input id="memoryEnabled" type="checkbox" /> 启用长期记忆（从聊天里记住关于你的事）</label>
+      <h2>
+        长期记忆
+        <span class="info-tip" id="memoryHint" data-tip="还没有记忆" tabindex="0">i</span>
+      </h2>
+      <label class="checkbox">
+        <input id="memoryEnabled" type="checkbox" /> 启用长期记忆
+        <span class="info-tip" data-tip="从聊天里记住关于你的事" tabindex="0">i</span>
+      </label>
       <label>
         每多少轮提取一次
         <input id="memoryExtractEveryRounds" type="number" min="1" step="1" />
@@ -56,7 +60,6 @@
         每次聊天最多注入多少条
         <input id="memoryInjectCount" type="number" min="0" step="1" />
       </label>
-      <p class="hint" id="memoryHint">还没有记忆</p>
       <ul id="memoryList" class="memory-list"></ul>
       <div class="row">
         <button type="button" id="openMemoryFile">打开记忆文件</button>
@@ -71,12 +74,14 @@
     </section>
 
     <section>
-      <h2>聊天记录</h2>
+      <h2>
+        聊天记录
+        <span class="info-tip" id="chatHistoryHint" data-tip="还没有聊天记录" tabindex="0">i</span>
+      </h2>
       <label>
         发给模型的最近轮数
         <input id="chatHistoryRounds" type="number" min="1" step="1" />
       </label>
-      <p class="hint" id="chatHistoryHint">还没有聊天记录</p>
       <div class="row">
         <button type="button" id="clearChatHistory">清空聊天记录</button>
         <span
@@ -146,7 +151,8 @@
         >
       </label>
       <label>
-        标题过滤词（逗号或换行分隔，命中就跳过这次吐槽）
+        标题过滤词
+        <span class="info-tip" data-tip="逗号或换行分隔，命中就跳过这次吐槽" tabindex="0">i</span>
         <textarea id="titleFilterWords" rows="2" placeholder="银行、密码、无痕等常见词已经内置了，这里填你想额外排除的"></textarea>
       </label>
       <label class="checkbox"><input id="randomQuestion" type="checkbox" /> 随机哲学问题</label>

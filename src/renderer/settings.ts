@@ -87,12 +87,12 @@ interface Window {
   const toggleShortcutEl = document.getElementById('toggleShortcut') as HTMLInputElement;
   const afkAfterMinutesEl = document.getElementById('afkAfterMinutes') as HTMLInputElement;
   const chatHistoryRoundsEl = document.getElementById('chatHistoryRounds') as HTMLInputElement;
-  const chatHistoryHintEl = document.getElementById('chatHistoryHint') as HTMLParagraphElement;
+  const chatHistoryHintEl = document.getElementById('chatHistoryHint') as HTMLSpanElement;
   const clearChatHistoryBtn = document.getElementById('clearChatHistory') as HTMLButtonElement;
   const memoryEnabledEl = document.getElementById('memoryEnabled') as HTMLInputElement;
   const memoryExtractEveryRoundsEl = document.getElementById('memoryExtractEveryRounds') as HTMLInputElement;
   const memoryInjectCountEl = document.getElementById('memoryInjectCount') as HTMLInputElement;
-  const memoryHintEl = document.getElementById('memoryHint') as HTMLParagraphElement;
+  const memoryHintEl = document.getElementById('memoryHint') as HTMLSpanElement;
   const memoryListEl = document.getElementById('memoryList') as HTMLUListElement;
   const openMemoryFileBtn = document.getElementById('openMemoryFile') as HTMLButtonElement;
   const openDataDirBtn = document.getElementById('openDataDir') as HTMLButtonElement;
@@ -173,18 +173,22 @@ interface Window {
     afkAfterMinutesEl.value = String(data.afkAfterMinutes);
     balanceWarnThresholdEl.value = String(data.balanceWarnThreshold);
     chatHistoryRoundsEl.value = String(data.chatHistoryRounds);
-    chatHistoryHintEl.textContent =
+    chatHistoryHintEl.setAttribute(
+      'data-tip',
       data.chatMessageCount > 0
         ? `本机已保存 ${data.chatMessageCount} 条消息（约 ${Math.ceil(data.chatMessageCount / 2)} 轮）`
-        : '还没有聊天记录';
+        : '还没有聊天记录'
+    );
 
     memoryEnabledEl.checked = data.memoryEnabled;
     memoryExtractEveryRoundsEl.value = String(data.memoryExtractEveryRounds);
     memoryInjectCountEl.value = String(data.memoryInjectCount);
-    memoryHintEl.textContent =
+    memoryHintEl.setAttribute(
+      'data-tip',
       data.memoryFactCount > 0
         ? `本机已记住 ${data.memoryFactCount} 条${data.memoryFactCount > data.memoryFacts.length ? `（下面只列最近 ${data.memoryFacts.length} 条）` : ''}`
-        : '还没有记忆，聊几轮之后她自己会记（也可以随时在记忆文件里手写）';
+        : '还没有记忆，聊几轮之后她自己会记（也可以随时在记忆文件里手写）'
+    );
     renderMemoryList(data);
 
     renderBalance(data);
