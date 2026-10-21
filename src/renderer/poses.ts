@@ -5,7 +5,7 @@
 // 由 index.html 按顺序加载；顶层 const 在浏览器里是所有 <script> 共享的，所以 pet.js 直接用 POSES。
 // 类型也集中在这里声明——全局脚本共享同一个作用域，同名的类型/常量整个程序只能有一份。
 
-type PetMenuAction = 'feed' | 'poke' | 'praise';
+type PetMenuAction = 'feed' | 'praise';
 
 /** 和 src/shared/types.ts 里的 PresenceState 保持一致（渲染脚本不能 import 主进程模块，改的时候两边都要改）。 */
 type PresenceState = 'active' | 'afk' | 'sleep';
@@ -58,7 +58,11 @@ interface PoseTables {
   poseState: Record<string, PetState>;
   /** ASSETS.md §3：待机时随机轮换的小动作池，播几秒后回到 idle-cute。 */
   idleActionFiles: string[];
-  reactionBubbles: Record<'petHead' | 'petTail' | 'pokeBelly', string[]>;
+  reactionBubbles: Record<'petHead' | 'petTail' | 'pokeBelly' | 'poke', string[]>;
+  /** 点摸头/摸尾巴/戳肚子时，有这个概率被"戳一下"的生气反应（angry 姿势）顶替掉，
+   *  不然每次摸同一个区域反应永远一样，显得太死板。原本是右键菜单里单独一个"戳一下"项，
+   *  现在改成点击时随机触发，惊喜感更强。 */
+  pokeChance: number;
   /** 睡醒时冒的气泡，不然"突然站起来打招呼"会有点莫名其妙。 */
   wakeBubbles: string[];
   menuActionState: Record<PetMenuAction, PetState>;
@@ -155,22 +159,23 @@ const POSES: PoseTables = {
   ],
 
   reactionBubbles: {
-    petHead: ['诶、诶？！', '别、别乱摸啦…', '哼，心情变好了一点点'],
-    petTail: ['尾巴不可以随便碰！', '呜哇！', '…其实还挺舒服的'],
-    pokeBelly: ['肚、肚子不可以戳！', '嗯啊！？', '别戳啦，会笑出来的'],
+    petHead: ['诶、诶？！', '哼，心情变好了一点点'],
+    petTail: ['呜哇！', '…其实还挺舒服的'],
+    pokeBelly: ['别戳啦，会笑出来的'],
+    poke: ['诶，戳我干嘛！', '呜——', '别戳啦'],
   },
+
+  pokeChance: 0.15,
 
   wakeBubbles: ['啊…你回来啦', '唔…我睡着了…你回来啦', '你回来啦！我一直在等你哦'],
 
   menuActionState: {
     feed: 'eat',
-    poke: 'angry',
     praise: 'praise',
   },
 
   menuActionBubbles: {
     feed: ['谢谢投喂～', '好吃！', '还要还要'],
-    poke: ['诶，戳我干嘛！', '呜——', '别戳啦'],
     praise: ['嘿嘿，谢谢夸奖～', '哼，就知道一点点开心', '再多夸夸我嘛'],
   },
 

@@ -313,13 +313,20 @@ window.addEventListener('contextmenu', (e) => {
 });
 
 function triggerReaction(zone: 'head' | 'tail' | 'belly'): void {
+  // 不管点哪个区域，都有一定概率被"戳一下"的生气反应顶替掉，原来是右键菜单里单独一项，
+  // 现在改成点击时随机冒出来，增加互动的不可预测性。
+  if (Math.random() < POSES.pokeChance) {
+    const pokeLines = POSES.reactionBubbles.poke;
+    playTransient('angry', 1600, pokeLines[Math.floor(Math.random() * pokeLines.length)]);
+    return;
+  }
   const stateName: 'petHead' | 'petTail' | 'pokeBelly' =
     zone === 'head' ? 'petHead' : zone === 'tail' ? 'petTail' : 'pokeBelly';
   const lines = POSES.reactionBubbles[stateName];
   playTransient(stateName, 1600, lines[Math.floor(Math.random() * lines.length)]);
 }
 
-// 菜单里点了投喂/戳一下/夸夸，主进程转发过来。
+// 菜单里点了投喂/夸夸，主进程转发过来。
 window.petAPI.onTriggerAction((action) => {
   const lines = POSES.menuActionBubbles[action];
   playTransient(POSES.menuActionState[action], 1600, lines[Math.floor(Math.random() * lines.length)]);
@@ -327,6 +334,16 @@ window.petAPI.onTriggerAction((action) => {
 
 // 从隐藏状态召唤回来时打个招呼。
 window.petAPI.onShown(() => {
+  // 隐藏期间窗口收不到 mousemove（不在屏幕上，操作系统不会投递鼠标事件），
+  // 如果隐藏那一刻鼠标正好在她身上（ignoring=false），这个状态会一直留到再显示出来，
+  // 跟渲染进程这边的 ignoring 变量和主进程那边真实的 setIgnoreMouseEvents 状态都对不上——
+  // 表现就是显示出来之后点击/拖拽摸不到她，但右键判定走的是另一条相对独立的路径，碰巧还正常。
+  // 重新显示时强制回到"整体穿透"这个已知安全的默认值，不对的话下一次 mousemove 会自己纠正回来；
+  // 顺便清掉 pointerDown/dragging，防止任何极端情况下的拖拽状态跟着漏到这一轮。
+  ignoring = true;
+  pointerDown = false;
+  dragging = false;
+  window.petAPI.setIgnoreMouseEvents(true, true);
   playTransient('greet', 1400);
 });
 

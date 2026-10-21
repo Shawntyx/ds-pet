@@ -24,11 +24,11 @@ interface MenuItemDef {
     { id: 'chat', label: '💬 聊天' },
     { id: 'balance', label: '💰 查余额' },
     { id: 'feed', label: '🍪 投喂' },
-    { id: 'poke', label: '👉 戳一下' },
     { id: 'praise', label: '✨ 夸夸' },
     { id: 'dnd', label: '🌙 勿扰模式', checkbox: true, divider: true },
     { id: 'hide', label: '🙈 隐藏' },
     { id: 'settings', label: '⚙️ 设置' },
+    { id: 'quit', label: '❌ 关闭' },
   ];
 
   const root = document.getElementById('menu') as HTMLDivElement;

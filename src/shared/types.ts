@@ -128,8 +128,9 @@ export const DEFAULT_SETTINGS: PetSettings = {
   proactive: DEFAULT_PROACTIVE_SETTINGS,
 };
 
-/** 桌宠右键菜单可以触发的动作（对应桌宠状态机里的一次性反应）。 */
-export type PetMenuAction = 'feed' | 'poke' | 'praise';
+/** 桌宠右键菜单可以触发的动作（对应桌宠状态机里的一次性反应）。
+ *  "戳一下"不在这里——它改成点击摸头/摸尾巴/戳肚子时随机触发了，不再是单独的菜单项。 */
+export type PetMenuAction = 'feed' | 'praise';
 
 /** preload 暴露给渲染进程的 API 形状，主进程和渲染进程共用同一份类型定义。 */
 export interface PetBridge {
@@ -141,7 +142,7 @@ export interface PetBridge {
   getSpriteSize(): Promise<number>;
   /** 在桌宠身上右键，请求主进程在旁边弹出自绘菜单。 */
   requestContextMenu(): void;
-  /** 菜单里点了投喂/戳一下/夸夸，主进程转发过来让桌宠播对应反应。 */
+  /** 菜单里点了投喂/夸夸，主进程转发过来让桌宠播对应反应。 */
   onTriggerAction(callback: (action: PetMenuAction) => void): void;
   /** 从隐藏状态被召唤出来时触发，用来播一下打招呼动作。 */
   onShown(callback: () => void): void;

@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import * as path from 'path';
 import { loadSettings, updateSettings } from './config';
 import { announceBalance } from './balance';
@@ -91,7 +91,7 @@ function hideMenu(): void {
 
 function handleAction(actionId: string): void {
   if (!petWindowRef) return;
-  const petActions: PetMenuAction[] = ['feed', 'poke', 'praise'];
+  const petActions: PetMenuAction[] = ['feed', 'praise'];
   if ((petActions as string[]).includes(actionId)) {
     sendToWindow(petWindowRef, 'pet:trigger-action', actionId as PetMenuAction);
     return;
@@ -113,6 +113,9 @@ function handleAction(actionId: string): void {
       break;
     case 'settings':
       showSettingsWindow();
+      break;
+    case 'quit':
+      app.quit();
       break;
   }
 }
