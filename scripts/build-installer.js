@@ -23,16 +23,24 @@ const outputDir = path.join(projectRoot, '..', 'whale-pet-release');
 /**
  * 每次构建都让版本号往前走一格（0.1.0-alpha.1 → 0.1.0-alpha.2 …），
  * 这样安装包文件名永远能分出新旧——不然每次都是同名文件，用户分不清装的是哪一版。
- * 只有在"同名安装包已经存在"时才递增，避免重复构建把版本号刷得飞快。
+ * 只有在"这个版本号已经打过包"时才递增，避免重复构建把版本号刷得飞快。
+ *
+ * 判断"打过包"时**不**按产品名完全匹配文件名——产品名会变（改过一次中文名，
+ * "鲸鱼娘桌宠" → "大肥鱼桌宠"），按完整文件名找就找不到旧产品名打出来的包，
+ * 误判成"这个版本还没打过"，于是不递增，新产品名就顶着旧版本号打出了第二个同版本号
+ * 的安装包（实测踩过：输出目录里同时有"鲸鱼娘桌宠 Setup 0.1.0-alpha.3.exe"和
+ * "大肥鱼桌宠 Setup 0.1.0-alpha.3.exe"）。改成只看文件名里有没有"Setup <版本号>.exe"
+ * 这一段，不管前面产品名是什么。
  */
 function bumpVersionIfNeeded() {
   const pkgPath = path.join(projectRoot, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const productName = pkg.build?.productName ?? pkg.name;
-  const setupName = `${productName} Setup ${pkg.version}.exe`;
+  const versionSuffix = `Setup ${pkg.version}.exe`;
+  const existing = fs.existsSync(outputDir) ? fs.readdirSync(outputDir) : [];
+  const alreadyBuilt = existing.some((name) => name.endsWith(versionSuffix));
 
-  if (!fs.existsSync(path.join(outputDir, setupName))) {
-    console.log(`[whale-pet] 版本 ${pkg.version}（还没有同名安装包，不递增）`);
+  if (!alreadyBuilt) {
+    console.log(`[whale-pet] 版本 ${pkg.version}（还没有同版本号的安装包，不递增）`);
     return pkg.version;
   }
 
