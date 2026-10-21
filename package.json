@@ -3,7 +3,8 @@
   "version": "0.1.0-alpha.2",
   "description": "鲸鱼娘桌面宠物 - AI desktop pet",
   "private": true,
-  "author": "whale-pet (personal use)",
+  "license": "MIT",
+  "author": "Shawntyx",
   "main": "dist/main/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-static.js",

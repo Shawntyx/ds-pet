@@ -30,8 +30,22 @@ export function listPersonas(): string[] {
     .sort();
 }
 
+/** name 要么是 personasDir() 里真实存在的文件名，要么不信任——防止 `../../别处` 这类路径
+ *  从设置里传进来（正常走下拉框选不出这种值，但主进程这边不该只靠渲染进程乖乖守规矩）。
+ *  校验不过就退回第一个真实存在的人设文件，不让调用方（读文件内容 / shell.openPath）
+ *  碰到 personasDir() 以外的路径。 */
+function sanitizePersonaName(name: string): string {
+  const dir = personasDir();
+  const resolved = path.resolve(dir, name || '');
+  const rel = path.relative(dir, resolved);
+  const staysInside = rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+  if (staysInside && name.endsWith('.md') && fs.existsSync(resolved)) return name;
+  const fallback = listPersonas()[0];
+  return fallback ?? 'default.md';
+}
+
 export function personaFilePath(name: string): string {
-  return path.join(personasDir(), name);
+  return path.join(personasDir(), sanitizePersonaName(name));
 }
 
 /** 每次都从磁盘现读，不缓存——这样人设文件改了立刻生效，不用重启也不用"重新加载"按钮。 */
