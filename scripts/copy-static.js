@@ -5,6 +5,7 @@ const path = require('path');
 const pairs = [
   ['src/renderer/index.html', 'dist/renderer/index.html'],
   ['src/renderer/pet.css', 'dist/renderer/pet.css'],
+  ['src/renderer/theme.css', 'dist/renderer/theme.css'],
   ['src/renderer/menu.html', 'dist/renderer/menu.html'],
   ['src/renderer/menu.css', 'dist/renderer/menu.css'],
   ['src/renderer/chat.html', 'dist/renderer/chat.html'],

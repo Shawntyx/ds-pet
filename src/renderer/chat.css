@@ -3,51 +3,76 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
-  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-  background: #faf7f9;
-  color: #333;
+  font-family: var(--font-ui);
+  background: var(--cream);
+  color: var(--ink);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 
-/* 顶部一行：说明 + "新对话"按钮 */
+/* 顶部一行：她的名字/尾鳍标记 + 一句说明 + "新对话"按钮 */
 #header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  background: #fff;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1.5px solid var(--ink);
+  background: var(--cream);
+}
+
+#headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+#headerTail {
+  flex: none;
+  width: 18px;
+  height: 17px;
+  color: var(--gold);
+}
+
+#headerName {
+  margin: 0;
+  font-family: var(--font-voice);
+  font-size: 16px;
+  font-weight: normal;
+  color: var(--ink);
+  line-height: 1.2;
 }
 
 #headerHint {
-  flex: 1;
+  margin: 1px 0 0;
   font-size: 11px;
-  color: #999;
+  color: var(--ink-soft);
   line-height: 1.3;
 }
 
 #newConversation {
   flex: none;
-  border: 1px solid rgba(242, 139, 171, 0.5);
-  background: #fff;
-  color: #c0607f;
-  border-radius: 8px;
-  padding: 4px 10px;
+  border: 1.5px solid var(--ink);
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-family: var(--font-ui);
   font-size: 12px;
   cursor: pointer;
 }
 
 #newConversation:hover {
-  background: #fdecef;
+  background: var(--cream-deep);
 }
 
 /* 分隔线：标出"这里开始是一段新对话" */
 .divider {
   align-self: center;
   font-size: 11px;
-  color: #b9a7b0;
+  color: var(--ink-soft);
   margin: 2px 0;
   display: flex;
   align-items: center;
@@ -60,13 +85,14 @@ html, body {
   content: "";
   flex: 1;
   height: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--gold);
+  opacity: 0.45;
 }
 
 #messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -74,26 +100,32 @@ html, body {
 
 .msg {
   max-width: 82%;
-  padding: 8px 12px;
-  border-radius: 14px;
+  padding: 9px 13px;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.msg.user {
-  align-self: flex-end;
-  background: #4da3ff;
-  color: #fff;
-  border-bottom-right-radius: 4px;
-}
-
+/* 她说的话：暖白卡片，楷体正文，底下一道细金线收尾——不用圆角卡片+投影那一套，
+   边框和转角直接照应她围裙那种"方正带一点软"的裁线。 */
 .msg.assistant {
   align-self: flex-start;
-  background: #fff;
-  border: 1px solid rgba(242, 139, 171, 0.35);
-  border-bottom-left-radius: 4px;
+  background: var(--cream-deep);
+  border: 1px solid var(--ink-soft);
+  border-left: 3px solid var(--gold);
+  border-radius: 2px 10px 10px 2px;
+  font-family: var(--font-voice);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* 用户自己的话：她制服那种深靛青实色块，功能性无衬线字——跟"她在说话"的楷体明确区分开。 */
+.msg.user {
+  align-self: flex-end;
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 10px 2px 2px 10px;
 }
 
 .msg.assistant.pending::after {
@@ -104,15 +136,16 @@ html, body {
 
 .msg.error {
   align-self: center;
-  background: #fde2e2;
-  color: #a33;
-  border-radius: 10px;
+  background: #f3dede;
+  color: #93342f;
+  border-radius: 8px;
   font-size: 12px;
 }
 
 /* 被停止的回复：标一下"到这里就停了"，免得让人以为她打字打到一半没词了 */
 .msg.assistant.stopped::after {
   content: "（已停止）";
+  font-family: var(--font-ui);
   font-size: 11px;
   opacity: 0.55;
   margin-left: 4px;
@@ -120,8 +153,7 @@ html, body {
 
 /* 发送失败：主进程会把那条提问从记录里撤回，界面上也标出来 */
 .msg.user.failed {
-  background: #f0d3d3;
-  color: #8c3b3b;
+  background: #8c5a3b;
 }
 
 .msg.user.failed::after {
@@ -133,8 +165,7 @@ html, body {
 
 /* 一个字都没收到就停了：同样从记录里撤回 */
 .msg.user.withdrawn {
-  background: #e6e6e6;
-  color: #888;
+  background: var(--ink-soft);
 }
 
 .msg.user.withdrawn::after {
@@ -150,48 +181,62 @@ html, body {
 #composer {
   display: flex;
   gap: 8px;
-  padding: 10px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  background: #fff;
+  padding: 11px;
+  border-top: 1.5px solid var(--ink);
+  background: var(--cream);
 }
 
 #input {
   flex: 1;
   resize: none;
-  border: 1px solid #ddd;
-  border-radius: 10px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
+  font-family: var(--font-ui);
   font-size: 13px;
   box-sizing: border-box;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+#input::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.65;
 }
 
 #input:focus {
   outline: none;
-  border-color: #4da3ff;
+  border-color: var(--gold);
 }
 
 #send {
   border: none;
-  background: #4da3ff;
-  color: #fff;
-  border-radius: 10px;
-  padding: 0 16px;
+  background: var(--ink);
+  color: var(--cream);
+  border-radius: 8px;
+  padding: 0 18px;
+  font-family: var(--font-ui);
   font-size: 13px;
   cursor: pointer;
 }
 
+#send:hover:not(:disabled) {
+  background: var(--ink-soft);
+}
+
 #send:disabled {
-  background: #bcd7f5;
+  background: #c7c0b0;
   cursor: default;
 }
 
 #stop {
-  border: 1px solid #e0b4c2;
-  background: #fff;
-  color: #c0607f;
-  border-radius: 10px;
-  padding: 0 12px;
+  border: 1.5px solid var(--ink-soft);
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-family: var(--font-ui);
   font-size: 13px;
   cursor: pointer;
 }

@@ -24,13 +24,13 @@ body {
   background: transparent;
   overflow: hidden;
   user-select: none;
-  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
   display: flex;
   flex-direction: column;
   align-items: center;
   /* 贴底排：输入框永远固定在窗口底部，文字多了往上长，不会被挤出窗口 */
   justify-content: flex-end;
-  gap: 6px;
+  gap: 7px;
 }
 
 /* 文字框和右上角的 × 放一个相对定位的容器里；容器宽度跟着文字走，好让 × 贴着气泡右上角 */
@@ -48,15 +48,17 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   /* 右边留出 × 的位置（× 就在气泡里，不再挂到窗口外，免得被窗口边缘切掉） */
-  padding: 8px 22px 8px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(242, 139, 171, 0.35);
-  color: #333;
-  font-size: 13px;
-  line-height: 1.4;
+  padding: 9px 24px 9px 13px;
+  border-radius: 4px 12px 12px 12px;
+  background: var(--cream);
+  border: 1.5px solid var(--ink);
+  color: var(--ink);
+  /* 她说的话用带笔锋的楷体——这是她本人在"写"给你看的一句话，跟功能性文字分开。 */
+  font-family: var(--font-voice);
+  font-size: 14px;
+  line-height: 1.5;
   text-align: center;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+  box-shadow: 2px 3px 0 rgba(27, 42, 74, 0.16);
   white-space: pre-wrap;
   word-break: break-word;
   cursor: pointer;
@@ -66,25 +68,25 @@ body {
    之前挂在气泡外面（top:-7px），窗口高度只按文字算，结果 × 有一半被窗口上边缘切掉了。 */
 #closeBubble {
   position: absolute;
-  top: 1px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
+  top: 2px;
+  right: 3px;
+  width: 17px;
+  height: 17px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(120, 120, 120, 0.5);
-  color: #fff;
-  font-size: 12px;
-  line-height: 16px;
+  background: var(--ink-soft);
+  color: var(--cream);
+  font-size: 11px;
+  line-height: 15px;
   text-align: center;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 #closeBubble:hover {
   opacity: 1;
-  background: #d17ea0;
+  background: var(--ink);
 }
 
 #quickForm {
@@ -93,26 +95,40 @@ body {
   box-sizing: border-box;
 }
 
+/* 不做成聊天 App 常见的胶囊输入框，改成一条"写回她"的线——气泡本身已经很像一张小纸条了，
+   输入框也用同样的笔记质感：贴着底线写字，而不是另起一个独立的卡片组件。
+   背景特意给了实色暖白，没有做成透明：这扇窗口本身是穿透桌面的，真透明的话，输入框的字
+   会直接盖在用户桌面壁纸/底下那个窗口上——壁纸深色的时候深色字看不清，壁纸浅色的时候浅色字
+   又看不清，没有哪种文字颜色能保证两边都清楚。真正"跟着桌面内容变色"的方案需要截屏取色，
+   在一个透明置顶小窗上做这个既贵（要持续截屏）又怪（相当于悄悄读屏幕），不值当。
+   给输入框订一个固定、不透明的底色，比猜文字颜色简单可靠得多。 */
 #quickInput {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(242, 139, 171, 0.4);
-  background: rgba(255, 255, 255, 0.95);
+  padding: 7px 10px 7px;
+  border: none;
+  border-bottom: 1.5px solid var(--ink-soft);
+  border-radius: 3px 3px 0 0;
+  background: var(--cream);
+  box-shadow: 1px 2px 0 rgba(27, 42, 74, 0.1);
   font: inherit;
+  font-family: var(--font-ui);
   font-size: 12px;
-  color: #333;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+}
+
+#quickInput::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.6;
 }
 
 #quickInput:focus {
   outline: none;
-  border-color: #4da3ff;
+  border-bottom-color: var(--gold);
 }
 
 #quickInput:disabled {
-  background: rgba(245, 245, 245, 0.9);
-  color: #999;
+  border-bottom-color: #d8d0bd;
+  color: #b3a898;
   cursor: default;
 }

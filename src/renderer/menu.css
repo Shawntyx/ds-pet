@@ -6,60 +6,77 @@ html, body {
   background: transparent;
   overflow: hidden;
   user-select: none;
-  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: var(--font-ui);
 }
 
 #menu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   height: 100%;
-  padding: 6px;
+  padding: 7px 6px;
   box-sizing: border-box;
-  background: rgba(255, 250, 253, 0.97);
-  border: 1px solid rgba(242, 139, 171, 0.35);
-  border-radius: 16px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  background: var(--cream);
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  /* 实色靛青阴影，不是泛用的半透明黑——阴影颜色也要跟整体配色是一家人。 */
+  box-shadow: 3px 4px 0 rgba(27, 42, 74, 0.18);
 }
 
 .menu-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 9px 10px;
+  gap: 10px;
+  padding: 8px 9px;
   border: none;
   background: transparent;
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 13px;
-  color: #444;
+  color: var(--ink);
   cursor: pointer;
   text-align: left;
 }
 
 .menu-item:hover:not(.disabled) {
-  background: rgba(242, 139, 171, 0.18);
+  background: var(--cream-deep);
 }
 
 .menu-item.disabled {
-  color: #bbb;
+  color: #b3a898;
   cursor: default;
 }
 
 .menu-item .check {
   font-weight: bold;
-  color: #4da3ff;
+  color: var(--gold);
   min-width: 14px;
   text-align: right;
 }
 
 .menu-item .badge {
   font-size: 10px;
-  color: #bbb;
+  color: #b3a898;
 }
 
 .menu-divider {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 8px;
+}
+
+.menu-divider::before,
+.menu-divider::after {
+  content: "";
+  flex: 1;
   height: 1px;
-  margin: 3px 4px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--gold);
+  opacity: 0.5;
+}
+
+.menu-divider-tail {
+  display: flex;
+  flex: none;
+  color: var(--ink-soft);
+  opacity: 0.75;
 }
