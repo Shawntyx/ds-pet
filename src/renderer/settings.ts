@@ -77,7 +77,8 @@ interface Window {
 (function () {
   const form = document.getElementById('form') as HTMLFormElement;
   const apiKeyEl = document.getElementById('apiKey') as HTMLInputElement;
-  const apiKeyHintEl = document.getElementById('apiKeyHint') as HTMLParagraphElement;
+  const apiKeyStatusLabelEl = document.getElementById('apiKeyStatusLabel') as HTMLSpanElement;
+  const apiKeyHintEl = document.getElementById('apiKeyHint') as HTMLSpanElement;
   const userDataHintEl = document.getElementById('userDataHint') as HTMLParagraphElement;
   const baseURLEl = document.getElementById('baseURL') as HTMLInputElement;
   const modelEl = document.getElementById('model') as HTMLInputElement;
@@ -157,10 +158,12 @@ interface Window {
   }
 
   function fillForm(data: SettingsDataView): void {
-    // Key 状态由主进程判定（文件在不在、能不能解开），这里只负责显示；
-    // 解不开时用红字提醒重新填一次，不然用户会一直以为是"没设置"。
-    apiKeyHintEl.textContent = data.apiKeyHint;
-    apiKeyHintEl.className = data.apiKeyState === 'unreadable' ? 'hint warn' : 'hint';
+    // Key 状态由主进程判定（文件在不在、能不能解开）：简短状态常驻显示（尤其"读取失败"
+    // 需要用户动手重填，不能藏进悬浮提示里才看得到），完整说明放进 ⓘ 的悬浮文字。
+    const statusLabels: Record<string, string> = { missing: '还没设置', ok: '已设置', unreadable: '读取失败' };
+    apiKeyStatusLabelEl.textContent = statusLabels[data.apiKeyState] ?? data.apiKeyState;
+    apiKeyStatusLabelEl.className = data.apiKeyState === 'unreadable' ? 'status-label warn' : 'status-label';
+    apiKeyHintEl.setAttribute('data-tip', data.apiKeyHint);
     userDataHintEl.textContent = `数据目录：${data.userDataPath}`;
     // 版本号放这里：确认"我装的到底是哪一版"（更新完也能立刻核对）
     appVersionEl.textContent = `版本：${data.version}`;

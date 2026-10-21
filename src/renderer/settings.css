@@ -1,9 +1,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
-  background: #faf7f9;
-  color: #333;
+  font-family: var(--font-ui);
+  background: var(--cream-deep);
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -13,24 +13,30 @@ html, body {
 }
 
 section {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  background: var(--cream);
+  border: 1.3px solid var(--ink);
+  border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 12px;
 }
 
 h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
+  font-weight: normal;
   margin: 0 0 8px;
-  color: #d17ea0;
+  color: var(--ink);
+  border-bottom: 1px solid var(--gold);
+  padding-bottom: 6px;
 }
 
 label {
   display: block;
   margin-bottom: 8px;
   font-size: 12px;
-  color: #555;
+  color: var(--ink-soft);
 }
 
 label.checkbox {
@@ -52,34 +58,142 @@ textarea {
   box-sizing: border-box;
   margin-top: 4px;
   padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  border: 1.3px solid var(--ink-soft);
+  border-radius: 6px;
+  background: var(--cream);
+  color: var(--ink);
   font: inherit;
   resize: vertical;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
-  border-color: #4da3ff;
+  border-color: var(--gold);
 }
 
 .hint {
   font-size: 11px;
-  color: #999;
+  color: var(--ink-soft);
   margin: 2px 0 8px;
 }
 
 /* Key 读不出来这类需要用户动手的情况，用红色提示 */
 .hint.warn {
-  color: #c0392b;
+  color: #a3372c;
+}
+
+/* API Key 状态那一行：状态本身必须一眼能看见（尤其是"读取失败"这种需要用户动手的情况），
+   不能也藏进悬浮提示里；只有"留空保存=不修改"这种操作细节才交给 ⓘ。 */
+.field-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 8px;
+}
+
+.status-label {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.status-label.warn {
+  color: #a3372c;
+  font-weight: bold;
+}
+
+/* 小圆圈 info 标记：之前一长串说明文字常驻显示，占地方又不是每次都要看；
+   改成只在需要的时候——鼠标碰一下——才展开，常态下界面清爽很多。 */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.3px solid var(--ink-soft);
+  color: var(--ink-soft);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 10px;
+  line-height: 1;
+  cursor: help;
+  user-select: none;
+}
+
+.info-tip:hover,
+.info-tip:focus,
+.info-tip:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold);
+  outline: none;
+}
+
+/* 气泡朝下面展开，不朝上——这是个会滚动的长表单，滚到哪个区块，那个区块大概率就贴在
+   视口顶上，朝上展开很容易被窗口顶边切掉（API Key 那个就切过）；朝下相对稳妥。 */
+.info-tip::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--ink);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+  pointer-events: none;
+}
+
+.info-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 9px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 230px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-ui);
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .12s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.info-tip:hover::before,
+.info-tip:hover::after,
+.info-tip:focus::before,
+.info-tip:focus::after,
+.info-tip:focus-visible::before,
+.info-tip:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 button {
-  border: none;
-  border-radius: 8px;
+  border: 1.3px solid var(--ink);
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 6px;
   padding: 8px 14px;
+  font-family: var(--font-ui);
   font-size: 13px;
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--cream-deep);
 }
 
 /* 长期记忆列表：每条右边一个 ✕ 用来单独删除 */
@@ -98,11 +212,11 @@ button {
   padding: 4px 6px;
   border-radius: 6px;
   font-size: 12px;
-  color: #555;
+  color: var(--ink-soft);
 }
 
 .memory-list li:nth-child(odd) {
-  background: #faf7f9;
+  background: var(--cream-deep);
 }
 
 .memory-list li span {
@@ -112,6 +226,7 @@ button {
 
 .memory-delete {
   flex: none;
+  border: none;
   padding: 0 6px;
   background: transparent;
   color: #bbb;
@@ -120,29 +235,27 @@ button {
 }
 
 .memory-delete:hover {
-  color: #c0392b;
+  background: transparent;
+  color: #a3372c;
 }
 
 .row {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-/* 次要按钮统一浅灰；"清空"类破坏性操作给个淡红提示色 */
-#openPersonaFile,
-#refreshBalance,
+/* 破坏性操作（清空）给个淡红提示色，其余按钮都是统一的墨蓝线框样式 */
 #clearChatHistory,
-#openMemoryFile,
 #clearMemory {
-  background: #f0f0f0;
-  color: #333;
+  border-color: #a3372c;
+  color: #a3372c;
 }
 
-#clearChatHistory,
-#clearMemory {
-  background: #fdecef;
-  color: #c0392b;
+#clearChatHistory:hover:not(:disabled),
+#clearMemory:hover:not(:disabled) {
+  background: #f3dede;
 }
 
 #clearChatHistory:disabled,
@@ -155,10 +268,15 @@ button {
 
 #save {
   width: 100%;
-  background: #4da3ff;
-  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--cream);
   font-weight: 600;
   padding: 10px;
+}
+
+#save:hover {
+  background: var(--ink-soft);
 }
 
 #status {
@@ -169,9 +287,9 @@ button {
 }
 
 #status.ok {
-  color: #2a9d5c;
+  color: #2a7a4e;
 }
 
 #status.err {
-  color: #c0392b;
+  color: #a3372c;
 }
